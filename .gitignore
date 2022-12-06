@@ -1,0 +1,7 @@
+*.pyc
+.settings
+.directory
+.idea/
+_trial_temp/
+.vscode
+.run/

@@ -1,0 +1,17 @@
+version: "2.1"
+
+services:
+  restic-exporter:
+    image: ngosang/restic-exporter
+    container_name: restic-exporter
+    environment:
+      - TZ=Europe/Madrid
+      - RESTIC_REPO_URL=/data
+      - RESTIC_REPO_PASSWORD=password_here
+      # - RESTIC_REPO_PASSWORD_FILE=/file_with_password_here
+      - REFRESH_INTERVAL=1800 # 30 min
+    volumes:
+      - /host_path/restic/data:/data
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
