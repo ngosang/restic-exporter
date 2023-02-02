@@ -86,11 +86,23 @@ docker run -d \
 
 ## Configuration
 
-All configuration is done with environment variables.
+This Prometheus exporter is compatible with all [backends supported by Restic](https://restic.readthedocs.io/en/latest/030_preparing_a_new_repo.html).
+Some of them need additional environment variables for the secrets.
 
-- `RESTIC_REPO_URL`: Restic repository URL. It could be a local repository (eg: `/data`) or a remote repository (eg: `rest:http://user:password@127.0.0.1:8000/`).
+All configuration is done with environment variables:
+
+- `RESTIC_REPO_URL`: Restic repository URL. All backends are supported. Examples:
+  * Local repository: `/data`
+  * REST Server: `rest:http://user:password@127.0.0.1:8000/`
+  * Amazon S3: `s3:s3.amazonaws.com/bucket_name`
+  * Backblaze B2: `b2:bucketname:path/to/repo`
+
 - `RESTIC_REPO_PASSWORD`: Restic repository password in plain text. This is only required if `RESTIC_REPO_PASSWORD_FILE` is not defined.
 - `RESTIC_REPO_PASSWORD_FILE`: File with the Restic repository password in plain text. This is only required if `RESTIC_REPO_PASSWORD` is not defined. Remember to mount the Docker volume with the file.
+- `AWS_ACCESS_KEY_ID`: (Optional) Required for Amazon S3, Minio and Wasabi backends.
+- `AWS_SECRET_ACCESS_KEY`: (Optional) Required for Amazon S3, Minio and Wasabi backends.
+- `B2_ACCOUNT_ID`: (Optional) Required for Backblaze B2 backend.
+- `B2_ACCOUNT_KEY`: (Optional) Required for Backblaze B2 backend.
 - `REFRESH_INTERVAL`: (Optional) Refresh interval for the metrics in seconds. Computing the metrics is a expensive task, keep this value as high as possible. Default 60
 - `LISTEN_PORT`: (Optional) The address the exporter should listen on. The default is `8001`.
 - `LISTEN_ADDRESS`: (Optional) The address the exporter should listen on. The default is to listen on all addresses.
