@@ -14,9 +14,9 @@ import prometheus_client.core
 
 
 class ResticCollector(object):
-    def __init__(self, repository, password_file_):
+    def __init__(self, repository, password_file):
         self.repository = repository
-        self.password_file = password_file_
+        self.password_file = password_file
         # todo: the stats cache increases over time -> remove old ids
         # todo: cold start -> the stats cache could be saved in a persistent volume
         # todo: cold start -> the restic cache (/root/.cache/restic) could be saved in a persistent volume
@@ -212,16 +212,16 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        password_file = os.environ["PASSWORD_FILE"]
+        restic_repo_password_file = os.environ["RESTIC_REPO_PASSWORD_FILE"]
     except Exception:
-        logging.error("Configuration error. The environment variable PASSWORD_FILE is mandatory")
+        logging.error("Configuration error. The environment variable RESTIC_REPO_PASSWORD_FILE is mandatory")
         sys.exit(1)
 
     exporter_address = os.environ.get("LISTEN_ADDRESS", "0.0.0.0")
     exporter_port = int(os.environ.get("LISTEN_PORT", 8001))
     exporter_refresh_interval = int(os.environ.get("REFRESH_INTERVAL", 60))
 
-    collector = ResticCollector(restic_repo_url, password_file)
+    collector = ResticCollector(restic_repo_url, restic_repo_password_file)
 
     prometheus_client.core.REGISTRY.register(collector)
     prometheus_client.start_http_server(exporter_port, exporter_address)

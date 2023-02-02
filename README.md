@@ -20,7 +20,7 @@ Requirements:
 pip install -r /requirements.txt
 
 export RESTIC_REPO_URL=/data
-export PASSWORD_FILE=/restic_password_file
+export RESTIC_REPO_PASSWORD_FILE=/restic_password_file
 python restic-exporter.py
 ```
 
