@@ -98,7 +98,13 @@ class ResticCollector(object):
             stats = self.get_stats(snap['id'])
 
             time_parsed = re.sub(r'\.[^+-]+', '', snap['time'])
-            timestamp = time.mktime(datetime.datetime.strptime(time_parsed, "%Y-%m-%dT%H:%M:%S%z").timetuple())
+            if len(time_parsed) > 19:
+                # restic 14: '2023-01-12T06:59:33.1576588+01:00' -> '2023-01-12T06:59:33+01:00'
+                time_format = "%Y-%m-%dT%H:%M:%S%z"
+            else:
+                # restic 12: '2023-02-01T14:14:19.30760523Z' -> '2023-02-01T14:14:19'
+                time_format = "%Y-%m-%dT%H:%M:%S"
+            timestamp = time.mktime(datetime.datetime.strptime(time_parsed, time_format).timetuple())
 
             snapshots_total = 0
             for snap2 in all_snapshots:
