@@ -97,7 +97,7 @@ class ResticCollector(object):
         for snap in latest_snapshots:
             stats = self.get_stats(snap['id'])
 
-            time_parsed = re.sub(r'\.[^+-]+', '', snap['time'])
+            time_parsed = re.sub(r'\.[0-9]+', '', snap['time'])
             timestamp = time.mktime(datetime.datetime.strptime(time_parsed, "%Y-%m-%dT%H:%M:%S%z").timetuple())
 
             snapshots_total = 0
