@@ -8,6 +8,7 @@ import time
 import re
 import subprocess
 import sys
+import traceback
 
 import prometheus_client
 import prometheus_client.core
@@ -22,7 +23,7 @@ class ResticCollector(object):
         # todo: cold start -> the restic cache (/root/.cache/restic) could be saved in a persistent volume
         self.stats_cache = {}
         self.metrics = {}
-        self.refresh()
+        self.refresh(True)
 
     def collect(self):
         logging.debug("Incoming request")
@@ -84,11 +85,13 @@ class ResticCollector(object):
         yield backup_size_total
         yield backup_snapshots_total
 
-    def refresh(self):
+    def refresh(self, exit_on_error=False):
         try:
             self.metrics = self.get_metrics()
-        except Exception as e:
-            logging.error("Unable to collect metrics from Restic. Error: %s", str(e))
+        except Exception:
+            logging.error("Unable to collect metrics from Restic. %s", traceback.format_exc(0).replace("\n", " "))
+            if exit_on_error:
+                sys.exit(1)
 
     def get_metrics(self):
         all_snapshots = self.get_snapshots()
@@ -144,9 +147,9 @@ class ResticCollector(object):
         if only_latest:
             cmd.extend(['--latest', '1'])
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE)
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
-            raise Exception("Error executing restic snapshot command. Exit code: " + str(result.returncode))
+            raise Exception("Error executing restic snapshot command. " + self.parse_stderr(result))
         snapshots = json.loads(result.stdout.decode('utf-8'))
         for snap in snapshots:
             snap['hash'] = self.calc_snapshot_hash(snap)
@@ -169,9 +172,9 @@ class ResticCollector(object):
         if snapshot_id is not None:
             cmd.extend([snapshot_id])
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE)
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
-            raise Exception("Error executing restic stats command. Exit code: " + str(result.returncode))
+            raise Exception("Error executing restic stats command. " + self.parse_stderr(result))
         stats = json.loads(result.stdout.decode('utf-8'))
 
         if snapshot_id is not None:
@@ -189,14 +192,18 @@ class ResticCollector(object):
             'check'
         ]
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE)
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode == 0:
             return 1  # ok
+        logging.warning("Error checking the repository health. " + self.parse_stderr(result))
         return 0  # error
 
     def calc_snapshot_hash(self, snapshot: dict) -> str:
         text = snapshot['hostname'] + ",".join(snapshot['paths'])
         return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+    def parse_stderr(self, result):
+        return result.stderr.decode('utf-8').replace("\n", " ") + " Exit code: " + str(result.returncode)
 
 
 if __name__ == "__main__":
