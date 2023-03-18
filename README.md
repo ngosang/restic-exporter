@@ -97,38 +97,56 @@ All configuration is done with environment variables:
   * Amazon S3: `s3:s3.amazonaws.com/bucket_name`
   * Backblaze B2: `b2:bucketname:path/to/repo`
 
-- `RESTIC_REPO_PASSWORD`: Restic repository password in plain text. This is only required if `RESTIC_REPO_PASSWORD_FILE` is not defined.
-- `RESTIC_REPO_PASSWORD_FILE`: File with the Restic repository password in plain text. This is only required if `RESTIC_REPO_PASSWORD` is not defined. Remember to mount the Docker volume with the file.
-- `AWS_ACCESS_KEY_ID`: (Optional) Required for Amazon S3, Minio and Wasabi backends.
-- `AWS_SECRET_ACCESS_KEY`: (Optional) Required for Amazon S3, Minio and Wasabi backends.
+- `RESTIC_REPO_PASSWORD`: Restic repository password in plain text. This is only
+required if `RESTIC_REPO_PASSWORD_FILE` is not defined.
+- `RESTIC_REPO_PASSWORD_FILE`: File with the Restic repository password in plain
+text. This is only required if `RESTIC_REPO_PASSWORD` is not defined. Remember
+to mount the Docker volume with the file.
+- `AWS_ACCESS_KEY_ID`: (Optional) Required for Amazon S3, Minio and Wasabi
+backends.
+- `AWS_SECRET_ACCESS_KEY`: (Optional) Required for Amazon S3, Minio and Wasabi
+backends.
 - `B2_ACCOUNT_ID`: (Optional) Required for Backblaze B2 backend.
 - `B2_ACCOUNT_KEY`: (Optional) Required for Backblaze B2 backend.
-- `REFRESH_INTERVAL`: (Optional) Refresh interval for the metrics in seconds. Computing the metrics is a expensive task, keep this value as high as possible. Default 60
-- `LISTEN_PORT`: (Optional) The address the exporter should listen on. The default is `8001`.
-- `LISTEN_ADDRESS`: (Optional) The address the exporter should listen on. The default is to listen on all addresses.
+- `REFRESH_INTERVAL`: (Optional) Refresh interval for the metrics in seconds.
+Computing the metrics is a expensive task, keep this value as high as possible.
+Default is `60` seconds.
+- `LISTEN_PORT`: (Optional) The address the exporter should listen on. The
+default is `8001`.
+- `LISTEN_ADDRESS`: (Optional) The address the exporter should listen on. The
+default is to listen on all addresses.
 - `LOG_LEVEL`: (Optional) Log level of the traces. The default is `INFO`.
+- `EXIT_ON_ERROR`: (Optional) Shutdown exporter on any `restic` error. Default
+is `Flase` (only log error, such as network error with Cloud backends).
+- `NO_CHECK`: (Optional) Do not perform `restic check` operation for performance
+reasons. Default is `False` (perform `restic check`).
+- `NO_STATS`: (Optional) Do not collect per backup statistics for performance
+reasons. Default is `False` (collect per backup statistics).
 
 ## Exported metrics
 
-```shell
+```python
 # HELP restic_check_success Result of restic check operation in the repository
 # TYPE restic_check_success gauge
 restic_check_success 1.0
 # HELP restic_snapshots_total Total number of snapshots in the repository
 # TYPE restic_snapshots_total counter
-restic_snapshots_total 1777.0
+restic_snapshots_total 100.0
 # HELP restic_backup_timestamp Timestamp of the last backup
 # TYPE restic_backup_timestamp gauge
-restic_backup_timestamp{client_hostname="PC-HOME-1",client_username="PC-HOME-1\\User-1",snapshot_hash="1911eb846f1642c327936915f1fad4e16190d0ab6b68e045294f5f0280a00ebe"} 1.669754009e+09
+restic_backup_timestamp{client_hostname="product.example.com",client_username="root",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql"} 1.666273638e+09
 # HELP restic_backup_files_total Number of files in the backup
 # TYPE restic_backup_files_total counter
-restic_backup_files_total{client_hostname="PC-HOME-1",client_username="PC-HOME-1\\User-1",snapshot_hash="1911eb846f1642c327936915f1fad4e16190d0ab6b68e045294f5f0280a00ebe"} 19051.0
+restic_backup_files_total{client_hostname="product.example.com",client_username="root",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql"} 8.0
 # HELP restic_backup_size_total Total size of backup in bytes
 # TYPE restic_backup_size_total counter
-restic_backup_size_total{client_hostname="PC-HOME-1",client_username="PC-HOME-1\\User-1",snapshot_hash="1911eb846f1642c327936915f1fad4e16190d0ab6b68e045294f5f0280a00ebe"} 4.1174838248e+010
+restic_backup_size_total{client_hostname="product.example.com",client_username="root",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql"} 4.3309562e+07
 # HELP restic_backup_snapshots_total Total number of snapshots
 # TYPE restic_backup_snapshots_total counter
-restic_backup_snapshots_total{client_hostname="PC-HOME-1",client_username="PC-HOME-1\\User-1",snapshot_hash="1911eb846f1642c327936915f1fad4e16190d0ab6b68e045294f5f0280a00ebe"} 106.0
+restic_backup_snapshots_total{client_hostname="product.example.com",client_username="root",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql"} 1.0
+# HELP restic_scrape_duration_seconds Ammount of time each scrape takes
+# TYPE restic_scrape_duration_seconds gauge
+restic_scrape_duration_seconds 166.9411084651947
 ```
 
 ## Prometheus config
