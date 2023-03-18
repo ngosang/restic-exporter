@@ -168,7 +168,7 @@ class ResticCollector(object):
             clients.append(
                 {
                     "hostname": snap["hostname"],
-                    "username": snap["username"],
+                    "username": snap["username"] if "username" in snap else "",
                     "snapshot_hash": snap["hash"],
                     "snapshot_tag": tag,
                     "timestamp": timestamp,
