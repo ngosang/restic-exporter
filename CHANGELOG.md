@@ -1,12 +1,13 @@
 # Changelog
 
-## next_release
+## 1.2.0 (2023/03/18)
 
-* Added EXIT_ON_ERROR env var - now is possible to control exit_on_errors
-behaviour
-* Added NO_CHECK env var, now is possible not perform restic check operation
-* Added NO_STATS env var, now is possible not collect per backup stats
-* Added backup tag to the metric labels (if tags is present)
+* Add new label "snapshot_tag" in the metrics with the backup tag (if tags is present)
+* Add new metric "restic_scrape_duration_seconds"
+* Add EXIT_ON_ERROR env var to control behaviour on error
+* Add NO_CHECK env var to skip restic check stats
+* Add NO_STATS env var to skip stats per backup
+* Fix crash when backup username is empty. #7
 
 ## 1.1.0 (2023/02/02)
 
