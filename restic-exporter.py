@@ -127,26 +127,20 @@ class ResticCollector(object):
 
     def get_metrics(self):
         duration = time.time()
+
+        # calc total number of snapshots per hash
         all_snapshots = self.get_snapshots()
-        latest_snapshots = self.get_snapshots(True)
-        clients = []
-        for snap in latest_snapshots:
-            # Collect stats for each snap only if enabled
-            if self.disable_stats:
-                # return zero as "no-stats" value
-                stats = {
-                    "total_size": -1,
-                    "total_file_count": -1,
-                }
+        snap_total_counter = {}
+        for snap in all_snapshots:
+            if snap["hash"] not in snap_total_counter:
+                snap_total_counter[snap["hash"]] = 1
             else:
-                stats = self.get_stats(snap["id"])
+                snap_total_counter[snap["hash"]] += 1
 
-            # use first element of tags if tags is present
-            if "tags" in snap:
-                tag = snap["tags"][0]
-            else:
-                tag = ""
-
+        # get the latest snapshot per hash
+        latest_snapshots_dup = self.get_snapshots(True)
+        latest_snapshots = {}
+        for snap in latest_snapshots_dup:
             time_parsed = re.sub(r"\.[^+-]+", "", snap["time"])
             if len(time_parsed) > 19:
                 # restic 14: '2023-01-12T06:59:33.1576588+01:00' ->
@@ -159,24 +153,36 @@ class ResticCollector(object):
             timestamp = time.mktime(
                 datetime.datetime.strptime(time_parsed, time_format).timetuple()
             )
+            snap["timestamp"] = timestamp
+            if snap["hash"] not in latest_snapshots or \
+                    snap["timestamp"] > latest_snapshots[snap["hash"]]["timestamp"]:
+                latest_snapshots[snap["hash"]] = snap
 
-            snapshots_total = 0
-            for snap2 in all_snapshots:
-                if snap2["hash"] == snap["hash"]:
-                    snapshots_total += 1
+        clients = []
+        for snap in list(latest_snapshots.values()):
+            # collect stats for each snap only if enabled
+            if self.disable_stats:
+                # return zero as "no-stats" value
+                stats = {
+                    "total_size": -1,
+                    "total_file_count": -1,
+                }
+            else:
+                stats = self.get_stats(snap["id"])
 
             clients.append(
                 {
                     "hostname": snap["hostname"],
-                    "username": snap["username"] if "username" in snap else "",
+                    "username": snap["username"],
                     "snapshot_hash": snap["hash"],
-                    "snapshot_tag": tag,
-                    "timestamp": timestamp,
+                    "snapshot_tag": snap["tags"][0] if "tags" in snap else "",
+                    "timestamp": snap["timestamp"],
                     "size_total": stats["total_size"],
                     "files_total": stats["total_file_count"],
-                    "snapshots_total": snapshots_total,
+                    "snapshots_total": snap_total_counter[snap["hash"]],
                 }
             )
+
         # todo: fix the commented code when the bug is fixed in restic
         #  https://github.com/restic/restic/issues/2126
         # stats = self.get_stats()
@@ -220,6 +226,8 @@ class ResticCollector(object):
             )
         snapshots = json.loads(result.stdout.decode("utf-8"))
         for snap in snapshots:
+            if "username" not in snap:
+                snap["username"] = ""
             snap["hash"] = self.calc_snapshot_hash(snap)
         return snapshots
 
@@ -277,7 +285,7 @@ class ResticCollector(object):
             return 0  # error
 
     def calc_snapshot_hash(self, snapshot: dict) -> str:
-        text = snapshot["hostname"] + ",".join(snapshot["paths"])
+        text = snapshot["hostname"] + snapshot["username"] + ",".join(snapshot["paths"])
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     def parse_stderr(self, result):
