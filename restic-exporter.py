@@ -221,6 +221,7 @@ class ResticCollector(object):
         snapshots = json.loads(result.stdout.decode("utf-8"))
         for snap in snapshots:
             snap["hash"] = self.calc_snapshot_hash(snap)
+        print(json.dumps(snapshots))
         return snapshots
 
     def get_stats(self, snapshot_id=None):
