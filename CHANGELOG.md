@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 (2023/03/26)
+
+* Improve hash calculation to avoid duplicate clients (snapshot_hash label changes)
+
 ## 1.2.0 (2023/03/18)
 
 * Add new label "snapshot_tag" in the metrics with the backup tag (if tags is present)
