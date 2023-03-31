@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2 (2023/03/31)
+
+* Include OpenSSH in the Docker image to support SFTP protocol
+
 ## 1.2.1 (2023/03/26)
 
 * Improve hash calculation to avoid duplicate clients (snapshot_hash label changes)
