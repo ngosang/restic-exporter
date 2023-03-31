@@ -14,7 +14,7 @@ RUN cd /tmp \
 
 FROM python:3.11-alpine3.17
 
-RUN apk add --no-cache --update tzdata
+RUN apk add --no-cache --update openssh tzdata
 
 COPY --from=builder /tmp/restic /usr/bin
 COPY entrypoint.sh requirements.txt /
