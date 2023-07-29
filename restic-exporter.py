@@ -16,7 +16,8 @@ from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily, REGIS
 
 class ResticCollector(object):
     def __init__(
-        self, repository, password_file, exit_on_error, disable_check, disable_stats, disable_locks
+        self, repository, password_file, exit_on_error, disable_check,
+            disable_stats, disable_locks, include_paths
     ):
         self.repository = repository
         self.password_file = password_file
@@ -24,6 +25,7 @@ class ResticCollector(object):
         self.disable_check = disable_check
         self.disable_stats = disable_stats
         self.disable_locks = disable_locks
+        self.include_paths = include_paths
         # todo: the stats cache increases over time -> remove old ids
         # todo: cold start -> the stats cache could be saved in a persistent volume
         # todo: cold start -> the restic cache (/root/.cache/restic) could be
@@ -40,6 +42,7 @@ class ResticCollector(object):
             "client_username",
             "snapshot_hash",
             "snapshot_tag",
+            "snapshot_paths",
         ]
 
         check_success = GaugeMetricFamily(
@@ -93,6 +96,7 @@ class ResticCollector(object):
                 client["username"],
                 client["snapshot_hash"],
                 client["snapshot_tag"],
+                client["snapshot_paths"],
             ]
 
             backup_timestamp.add_metric(common_label_values, client["timestamp"])
@@ -177,6 +181,7 @@ class ResticCollector(object):
                     "username": snap["username"],
                     "snapshot_hash": snap["hash"],
                     "snapshot_tag": snap["tags"][0] if "tags" in snap else "",
+                    "snapshot_paths": ",".join(snap["paths"]) if self.include_paths else "",
                     "timestamp": snap["timestamp"],
                     "size_total": stats["total_size"],
                     "files_total": stats["total_file_count"],
@@ -355,6 +360,7 @@ if __name__ == "__main__":
     exporter_disable_check = bool(os.environ.get("NO_CHECK", False))
     exporter_disable_stats = bool(os.environ.get("NO_STATS", False))
     exporter_disable_locks = bool(os.environ.get("NO_LOCKS", False))
+    exporter_include_paths = bool(os.environ.get("INCLUDE_PATHS", False))
 
     try:
         collector = ResticCollector(
@@ -364,6 +370,7 @@ if __name__ == "__main__":
             exporter_disable_check,
             exporter_disable_stats,
             exporter_disable_locks,
+            exporter_include_paths,
         )
         REGISTRY.register(collector)
         start_http_server(exporter_port, exporter_address)

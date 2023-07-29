@@ -123,7 +123,8 @@ is `Flase` (only log error, such as network error with Cloud backends).
 reasons. Default is `False` (perform `restic check`).
 - `NO_STATS`: (Optional) Do not collect per backup statistics for performance
 reasons. Default is `False` (collect per backup statistics).
-- `NO_LOCKS`: (Optional) Do not collect the number of locks. Default is `False` (collect number of locks).
+- `NO_LOCKS`: (Optional) Do not collect the number of locks. Default is `False` (collect the number of locks).
+- `INCLUDE_PATHS`: (Optional) Include snapshot paths for each backup. The paths are separated by commas. Default is `False` (not collect the paths).
 
 ### Configuration for Rclone
 
@@ -163,17 +164,17 @@ restic_locks_total 1.0
 restic_snapshots_total 100.0
 # HELP restic_backup_timestamp Timestamp of the last backup
 # TYPE restic_backup_timestamp gauge
-restic_backup_timestamp{client_hostname="product.example.com",client_username="root",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql"} 1.666273638e+09
+restic_backup_timestamp{client_hostname="product.example.com",client_username="root",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql",snapshot_paths="/mysql/data,/mysql/config"} 1.666273638e+09
 # HELP restic_backup_files_total Number of files in the backup
 # TYPE restic_backup_files_total counter
-restic_backup_files_total{client_hostname="product.example.com",client_username="root",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql"} 8.0
+restic_backup_files_total{client_hostname="product.example.com",client_username="root",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql",snapshot_paths="/mysql/data,/mysql/config"} 8.0
 # HELP restic_backup_size_total Total size of backup in bytes
 # TYPE restic_backup_size_total counter
-restic_backup_size_total{client_hostname="product.example.com",client_username="root",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql"} 4.3309562e+07
+restic_backup_size_total{client_hostname="product.example.com",client_username="root",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql",snapshot_paths="/mysql/data,/mysql/config"} 4.3309562e+07
 # HELP restic_backup_snapshots_total Total number of snapshots
 # TYPE restic_backup_snapshots_total counter
-restic_backup_snapshots_total{client_hostname="product.example.com",client_username="root",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql"} 1.0
-# HELP restic_scrape_duration_seconds Ammount of time each scrape takes
+restic_backup_snapshots_total{client_hostname="product.example.com",client_username="root",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql",snapshot_paths="/mysql/data,/mysql/config"} 1.0
+# HELP restic_scrape_duration_seconds Amount of time each scrape takes
 # TYPE restic_scrape_duration_seconds gauge
 restic_scrape_duration_seconds 166.9411084651947
 ```
