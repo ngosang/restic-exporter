@@ -96,6 +96,7 @@ All configuration is done with environment variables:
   * REST Server: `rest:http://user:password@127.0.0.1:8000/`
   * Amazon S3: `s3:s3.amazonaws.com/bucket_name`
   * Backblaze B2: `b2:bucketname:path/to/repo`
+  * Rclone (see notes below): `rclone:gd-backup:/restic`
 
 - `RESTIC_REPO_PASSWORD`: Restic repository password in plain text. This is only
 required if `RESTIC_REPO_PASSWORD_FILE` is not defined.
@@ -122,6 +123,30 @@ is `Flase` (only log error, such as network error with Cloud backends).
 reasons. Default is `False` (perform `restic check`).
 - `NO_STATS`: (Optional) Do not collect per backup statistics for performance
 reasons. Default is `False` (collect per backup statistics).
+
+### Configuration for Rclone
+
+Rclone is not included in the Docker image. You have to mount the Rclone executable and the Rclone configuration from the host machine. Here is an example with docker-compose:
+
+```yaml
+version: '2.1'
+services:
+  restic-exporter:
+    image: ngosang/restic-exporter
+    container_name: restic-exporter
+    environment:
+      - TZ=Europe/Madrid
+      - RESTIC_REPO_URL=rclone:gd-backup:/restic
+      - RESTIC_REPO_PASSWORD= 
+      - REFRESH_INTERVAL=1800 # 30 min
+    volumes:
+      - /host_path/restic/data:/data
+      - /usr/bin/rclone:/usr/bin/rclone:ro
+      - /host_path/restic/rclone.conf:/root/.config/rclone/rclone.conf:ro
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+```
 
 ## Exported metrics
 
