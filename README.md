@@ -123,6 +123,7 @@ is `Flase` (only log error, such as network error with Cloud backends).
 reasons. Default is `False` (perform `restic check`).
 - `NO_STATS`: (Optional) Do not collect per backup statistics for performance
 reasons. Default is `False` (collect per backup statistics).
+- `NO_LOCKS`: (Optional) Do not collect the number of locks. Default is `False` (collect number of locks).
 
 ### Configuration for Rclone
 
@@ -154,6 +155,9 @@ services:
 # HELP restic_check_success Result of restic check operation in the repository
 # TYPE restic_check_success gauge
 restic_check_success 1.0
+# HELP restic_locks_total Total number of locks in the repository
+# TYPE restic_locks_total counter
+restic_locks_total 1.0
 # HELP restic_snapshots_total Total number of snapshots in the repository
 # TYPE restic_snapshots_total counter
 restic_snapshots_total 100.0

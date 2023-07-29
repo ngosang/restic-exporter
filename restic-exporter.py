@@ -16,13 +16,14 @@ from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily, REGIS
 
 class ResticCollector(object):
     def __init__(
-        self, repository, password_file, exit_on_error, disable_check, disable_stats
+        self, repository, password_file, exit_on_error, disable_check, disable_stats, disable_locks
     ):
         self.repository = repository
         self.password_file = password_file
         self.exit_on_error = exit_on_error
         self.disable_check = disable_check
         self.disable_stats = disable_stats
+        self.disable_locks = disable_locks
         # todo: the stats cache increases over time -> remove old ids
         # todo: cold start -> the stats cache could be saved in a persistent volume
         # todo: cold start -> the restic cache (/root/.cache/restic) could be
@@ -46,37 +47,36 @@ class ResticCollector(object):
             "Result of restic check operation in the repository",
             labels=[],
         )
-
+        locks_total = CounterMetricFamily(
+            "restic_locks_total",
+            "Total number of locks in the repository",
+            labels=[],
+        )
         snapshots_total = CounterMetricFamily(
             "restic_snapshots_total",
             "Total number of snapshots in the repository",
             labels=[],
         )
-
         backup_timestamp = GaugeMetricFamily(
             "restic_backup_timestamp",
             "Timestamp of the last backup",
             labels=common_label_names,
         )
-
         backup_files_total = CounterMetricFamily(
             "restic_backup_files_total",
             "Number of files in the backup",
             labels=common_label_names,
         )
-
         backup_size_total = CounterMetricFamily(
             "restic_backup_size_total",
             "Total size of backup in bytes",
             labels=common_label_names,
         )
-
         backup_snapshots_total = CounterMetricFamily(
             "restic_backup_snapshots_total",
             "Total number of snapshots",
             labels=common_label_names,
         )
-
         scrape_duration_seconds = GaugeMetricFamily(
             "restic_scrape_duration_seconds",
             "Ammount of time each scrape takes",
@@ -84,6 +84,7 @@ class ResticCollector(object):
         )
 
         check_success.add_metric([], self.metrics["check_success"])
+        locks_total.add_metric([], self.metrics["locks_total"])
         snapshots_total.add_metric([], self.metrics["snapshots_total"])
 
         for client in self.metrics["clients"]:
@@ -104,6 +105,7 @@ class ResticCollector(object):
         scrape_duration_seconds.add_metric([], self.metrics["duration"])
 
         yield check_success
+        yield locks_total
         yield snapshots_total
         yield backup_timestamp
         yield backup_files_total
@@ -192,8 +194,15 @@ class ResticCollector(object):
         else:
             check_success = self.get_check()
 
+        if self.disable_locks:
+            # return 0 as "no-locks" value
+            locks_total = 0
+        else:
+            locks_total = self.get_locks()
+
         metrics = {
             "check_success": check_success,
+            "locks_total": locks_total,
             "clients": clients,
             "snapshots_total": len(all_snapshots),
             "duration": time.time() - duration
@@ -283,6 +292,26 @@ class ResticCollector(object):
             )
             return 0  # error
 
+    def get_locks(self):
+        cmd = [
+            "restic",
+            "-r",
+            self.repository,
+            "-p",
+            self.password_file,
+            "--no-lock",
+            "list",
+            "locks",
+        ]
+
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if result.returncode != 0:
+            raise Exception(
+                "Error executing restic list locks command: " + self.parse_stderr(result)
+            )
+        text_result = result.stdout.decode("utf-8")
+        return len(text_result.split("\n")) - 1
+
     def calc_snapshot_hash(self, snapshot: dict) -> str:
         text = snapshot["hostname"] + snapshot["username"] + ",".join(snapshot["paths"])
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -323,6 +352,7 @@ if __name__ == "__main__":
     exporter_exit_on_error = bool(os.environ.get("EXIT_ON_ERROR", False))
     exporter_disable_check = bool(os.environ.get("NO_CHECK", False))
     exporter_disable_stats = bool(os.environ.get("NO_STATS", False))
+    exporter_disable_locks = bool(os.environ.get("NO_LOCKS", False))
 
     try:
         collector = ResticCollector(
@@ -331,6 +361,7 @@ if __name__ == "__main__":
             exporter_exit_on_error,
             exporter_disable_check,
             exporter_disable_stats,
+            exporter_disable_locks,
         )
         REGISTRY.register(collector)
         start_http_server(exporter_port, exporter_address)
