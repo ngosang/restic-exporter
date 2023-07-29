@@ -2,8 +2,10 @@
 
 ## 1.3.0 (2023/07/30)
 
-* New metric restic_locks_total
-* Include backup paths in the exported metrics
+* Add new metric "restic_locks_total" with the number of repository locks
+* Add new label "snapshot_paths" in the metrics with the backup paths
+* Add NO_LOCKS env var to skip restic locks collection
+* Add INCLUDE_PATHS env var to include the backup paths in the metrics
 * Add Rclone instructions in the readme
 * Update Restic 0.15.2
 * Update Python dependencies
