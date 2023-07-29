@@ -110,7 +110,7 @@ backends.
 - `B2_ACCOUNT_ID`: (Optional) Required for Backblaze B2 backend.
 - `B2_ACCOUNT_KEY`: (Optional) Required for Backblaze B2 backend.
 - `REFRESH_INTERVAL`: (Optional) Refresh interval for the metrics in seconds.
-Computing the metrics is a expensive task, keep this value as high as possible.
+Computing the metrics is an expensive task, keep this value as high as possible.
 Default is `60` seconds.
 - `LISTEN_PORT`: (Optional) The address the exporter should listen on. The
 default is `8001`.
@@ -151,7 +151,7 @@ services:
 
 ## Exported metrics
 
-```python
+```bash
 # HELP restic_check_success Result of restic check operation in the repository
 # TYPE restic_check_success gauge
 restic_check_success 1.0

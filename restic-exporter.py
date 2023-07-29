@@ -79,7 +79,7 @@ class ResticCollector(object):
         )
         scrape_duration_seconds = GaugeMetricFamily(
             "restic_scrape_duration_seconds",
-            "Ammount of time each scrape takes",
+            "Amount of time each scrape takes",
             labels=[],
         )
 
@@ -312,11 +312,13 @@ class ResticCollector(object):
         text_result = result.stdout.decode("utf-8")
         return len(text_result.split("\n")) - 1
 
-    def calc_snapshot_hash(self, snapshot: dict) -> str:
+    @staticmethod
+    def calc_snapshot_hash(snapshot: dict) -> str:
         text = snapshot["hostname"] + snapshot["username"] + ",".join(snapshot["paths"])
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-    def parse_stderr(self, result):
+    @staticmethod
+    def parse_stderr(result):
         return (
             result.stderr.decode("utf-8").replace("\n", " ")
             + " Exit code: "
