@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0 (2023/07/30)
+
+* New metric restic_locks_total
+* Include backup paths in the exported metrics
+* Add Rclone instructions in the readme
+* Update Restic 0.15.2
+* Update Python dependencies
+* Update base Docker image to Alpine 3.18
+
 ## 1.2.2 (2023/03/31)
 
 * Include OpenSSH in the Docker image to support SFTP protocol
