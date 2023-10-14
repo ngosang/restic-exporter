@@ -40,6 +40,7 @@ class ResticCollector(object):
         common_label_names = [
             "client_hostname",
             "client_username",
+            "client_version",
             "snapshot_hash",
             "snapshot_tag",
             "snapshot_paths",
@@ -94,6 +95,7 @@ class ResticCollector(object):
             common_label_values = [
                 client["hostname"],
                 client["username"],
+                client["version"],
                 client["snapshot_hash"],
                 client["snapshot_tag"],
                 client["snapshot_paths"],
@@ -179,6 +181,7 @@ class ResticCollector(object):
                 {
                     "hostname": snap["hostname"],
                     "username": snap["username"],
+                    "version": snap["program_version"] if "program_version" in snap else "",
                     "snapshot_hash": snap["hash"],
                     "snapshot_tag": snap["tags"][0] if "tags" in snap else "",
                     "snapshot_paths": ",".join(snap["paths"]) if self.include_paths else "",
