@@ -12,7 +12,7 @@ RUN cd /tmp \
     # flag -ldflags "-s -w" produces a smaller executable
     && go build -ldflags "-s -w" -v -o /tmp/restic ./cmd/restic
 
-FROM python:3.11-alpine3.18
+FROM python:3.12-alpine3.18
 
 RUN apk add --no-cache --update openssh tzdata
 
