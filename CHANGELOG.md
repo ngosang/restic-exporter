@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0 (2023/10/14)
+
+* Include metric label client_version. Resolves #5
+* Update Grafana dashboard to include repository locks and client version
+* Update Restic 0.16.0
+* Update Python 3.12
+
 ## 1.3.0 (2023/07/30)
 
 * Add new metric "restic_locks_total" with the number of repository locks
