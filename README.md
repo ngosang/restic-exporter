@@ -1,52 +1,18 @@
-# ngosang/restic-exporter
+# restic-exporter
 
-[![Latest release](https://img.shields.io/github/v/release/ngosang/restic-exporter)](https://github.com/ngosang/restic-exporter/releases)
-[![Docker Pulls](https://img.shields.io/docker/pulls/ngosang/restic-exporter)](https://hub.docker.com/r/ngosang/restic-exporter/)
-[![Donate PayPal](https://img.shields.io/badge/Donate-PayPal-yellow.svg)](https://www.paypal.com/paypalme/diegoheras0xff)
-[![Donate Bitcoin](https://img.shields.io/badge/Donate-Bitcoin-f7931a.svg)](https://www.blockchain.com/btc/address/14EcPN47rWXkmFvjfohJx2rQxxoeBRJhej)
-[![Donate Ethereum](https://img.shields.io/badge/Donate-Ethereum-8c8c8c.svg)](https://www.blockchain.com/eth/address/0x0D1549BbB00926BF3D92c1A8A58695e982f1BE2E)
+**NOTE**: This is a custom fork, adjusted to Modoolar requirements. Original project is available at [ngosang/restic-exporter](https://github.com/ngosang/restic-exporter).
 
 Prometheus exporter for the [Restic](https://github.com/restic/restic) backup system.
 
 ## Install
 
-### Form source code
-
-Requirements:
- * Python 3
- * [prometheus-client](https://github.com/prometheus/client_python)
+Docker images are available in [registry.modoolar.com](https://registry.modoolar.com/modoolar/devops/images/restic-explorer).
 
 ```bash
-pip install -r /requirements.txt
-
-export RESTIC_REPO_URL=/data
-export RESTIC_REPO_PASSWORD_FILE=/restic_password_file
-python restic-exporter.py
+docker pull registry.modoolar.com/modoolar/devops/images/restic-explorer:latest
 ```
 
-### Docker
-
-Docker images are available in [GHCR](https://github.com/ngosang/restic-exporter/pkgs/container/restic-exporter) and [DockerHub](https://hub.docker.com/r/ngosang/restic-exporter).
-
-```bash
-docker pull ghcr.io/ngosang/restic-exporter
-or
-docker pull ngosang/restic-exporter
-```
-
-#### Supported Architectures
-
-The architectures supported by this image are:
-
-* linux/386
-* linux/amd64
-* linux/arm/v6
-* linux/arm/v7
-* linux/arm64/v8
-* linux/ppc64le
-* linux/s390x
-
-#### docker-compose
+## docker-compose examples
 
 Compatible with docker-compose v2 schemas:
 

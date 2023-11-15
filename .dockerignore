@@ -1,0 +1,4 @@
+.git
+.idea
+.gitlab-ci.yml
+docker-bake.hcl

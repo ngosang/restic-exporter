@@ -16,8 +16,8 @@ from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily, REGIS
 
 class ResticCollector(object):
     def __init__(
-        self, repository, password_file, exit_on_error, disable_check,
-            disable_stats, disable_locks, include_paths
+            self, repository, password_file, exit_on_error, disable_check,
+            disable_stats, disable_locks, include_paths, **kwargs
     ):
         self.repository = repository
         self.password_file = password_file
@@ -26,6 +26,10 @@ class ResticCollector(object):
         self.disable_stats = disable_stats
         self.disable_locks = disable_locks
         self.include_paths = include_paths
+
+        self.rclone_program = kwargs.get('rclone_program')
+        self.filter_hosts = kwargs.get('filter_hosts')
+
         # todo: the stats cache increases over time -> remove old ids
         # todo: cold start -> the stats cache could be saved in a persistent volume
         # todo: cold start -> the restic cache (/root/.cache/restic) could be
@@ -33,6 +37,20 @@ class ResticCollector(object):
         self.stats_cache = {}
         self.metrics = {}
         self.refresh(exit_on_error)
+
+    def get_base_cmd(self):
+        cmd = [
+            "restic",
+            "-r",
+            self.repository,
+            "-p",
+            self.password_file
+        ]
+
+        if self.rclone_program:
+            cmd.extend(['-o', f'rclone.program={self.rclone_program}'])
+
+        return cmd
 
     def collect(self):
         logging.debug("Incoming request")
@@ -221,19 +239,21 @@ class ResticCollector(object):
         return metrics
 
     def get_snapshots(self, only_latest=False):
-        cmd = [
-            "restic",
-            "-r",
-            self.repository,
-            "-p",
-            self.password_file,
+        cmd = self.get_base_cmd()
+
+        cmd.extend([
             "--no-lock",
             "snapshots",
             "--json",
-        ]
+        ])
+
+        if self.filter_hosts:
+            cmd.extend(['--host', self.filter_hosts])
 
         if only_latest:
             cmd.extend(["--latest", "1"])
+
+        logging.info(f"Running {' '.join(cmd)}")
 
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
@@ -254,16 +274,17 @@ class ResticCollector(object):
         if snapshot_id is not None and snapshot_id in self.stats_cache:
             return self.stats_cache[snapshot_id]
 
-        cmd = [
-            "restic",
-            "-r",
-            self.repository,
-            "-p",
-            self.password_file,
+        cmd = self.get_base_cmd()
+
+        cmd.extend([
             "--no-lock",
             "stats",
             "--json",
-        ]
+        ])
+
+        if self.filter_hosts:
+            cmd.extend(['--host', self.filter_hosts])
+
         if snapshot_id is not None:
             cmd.extend([snapshot_id])
 
@@ -281,15 +302,12 @@ class ResticCollector(object):
 
     def get_check(self):
         # This command takes 20 seconds or more, but it's required
-        cmd = [
-            "restic",
-            "-r",
-            self.repository,
-            "-p",
-            self.password_file,
+        cmd = self.get_base_cmd()
+
+        cmd.extend([
             "--no-lock",
             "check",
-        ]
+        ])
 
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode == 0:
@@ -301,16 +319,12 @@ class ResticCollector(object):
             return 0  # error
 
     def get_locks(self):
-        cmd = [
-            "restic",
-            "-r",
-            self.repository,
-            "-p",
-            self.password_file,
-            "--no-lock",
+        cmd = self.get_base_cmd()
+
+        cmd.extend([
             "list",
             "locks",
-        ]
+        ])
 
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
@@ -328,9 +342,9 @@ class ResticCollector(object):
     @staticmethod
     def parse_stderr(result):
         return (
-            result.stderr.decode("utf-8").replace("\n", " ")
-            + " Exit code: "
-            + str(result.returncode)
+                result.stderr.decode("utf-8").replace("\n", " ")
+                + " Exit code: "
+                + str(result.returncode)
         )
 
 
@@ -344,18 +358,25 @@ if __name__ == "__main__":
     logging.info("Starting Restic Prometheus Exporter")
     logging.info("It could take a while if the repository is remote")
 
-    try:
-        restic_repo_url = os.environ["RESTIC_REPO_URL"]
-    except Exception:
-        logging.error("The environment variable RESTIC_REPO_URL is mandatory")
-        sys.exit(1)
+    restic_repository = None
+    restic_repo_password_file = None
 
     try:
-        restic_repo_password_file = os.environ["RESTIC_REPO_PASSWORD_FILE"]
-    except Exception:
-        logging.error("The environment variable RESTIC_REPO_PASSWORD_FILE is mandatory")
+        restic_repository = os.environ.get('RESTIC_REPOSITORY', None)
+
+        if not restic_repository:
+            raise Exception("RESTIC_REPOSITORY is required")
+
+        restic_repo_password_file = os.environ.get("RESTIC_REPO_PASSWORD_FILE", None)
+
+        if not restic_repo_password_file:
+            raise Exception("RESTIC_REPO_PASSWORD_FILE is required")
+
+    except Exception as e:
+        logging.error(e)
         sys.exit(1)
 
+    # exporter config
     exporter_address = os.environ.get("LISTEN_ADDRESS", "0.0.0.0")
     exporter_port = int(os.environ.get("LISTEN_PORT", 8001))
     exporter_refresh_interval = int(os.environ.get("REFRESH_INTERVAL", 60))
@@ -365,15 +386,27 @@ if __name__ == "__main__":
     exporter_disable_locks = bool(os.environ.get("NO_LOCKS", False))
     exporter_include_paths = bool(os.environ.get("INCLUDE_PATHS", False))
 
+    # rclone config
+    rclone_program = os.environ.get('RCLONE_PROGRAM', None)
+
+    # restic config
+    restic_filter_hosts = os.environ.get('RESTIC_FILTER_HOSTS', None)
+    restic_retention_policy = os.environ.get('RESTIC_RETENTION_POLICY', None)
+
+    # TODO: counts based on restic_retention_policy
+
     try:
         collector = ResticCollector(
-            restic_repo_url,
+            restic_repository,
             restic_repo_password_file,
             exporter_exit_on_error,
             exporter_disable_check,
             exporter_disable_stats,
             exporter_disable_locks,
             exporter_include_paths,
+            rclone_program=rclone_program,
+            filter_hosts=restic_filter_hosts,
+            restic_retention_policy=restic_retention_policy,
         )
         REGISTRY.register(collector)
         start_http_server(exporter_port, exporter_address)

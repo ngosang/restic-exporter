@@ -21,7 +21,9 @@ COPY entrypoint.sh requirements.txt /
 
 RUN pip install -r /requirements.txt \
     # remove temporary files
-    && rm -rf /root/.cache
+    && rm -rf /root/.cache \
+    # install rclone
+    && apk add rclone
 
 COPY ./restic-exporter.py /restic-exporter.py
 
