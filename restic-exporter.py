@@ -15,45 +15,59 @@ from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily, REGIS
 
 
 class ResticCollector(object):
-    def __init__(
-            self, repository, password_file, exit_on_error, disable_check,
-            disable_stats, disable_locks, include_paths, **kwargs
-    ):
+    def __init__(self, repository, password_file_path, storage_boxes, **kwargs):
+        # required stuff - repository, path to password file,
+        # list of storageboxes where repository for hostis placed
         self.repository = repository
-        self.password_file = password_file
-        self.exit_on_error = exit_on_error
-        self.disable_check = disable_check
-        self.disable_stats = disable_stats
-        self.disable_locks = disable_locks
-        self.include_paths = include_paths
+        self.password_file_path = password_file_path
+        self.storage_boxes = storage_boxes
+        self.repository_name = kwargs.get('repository_name', 'default')
 
+        # exporter config
+        self.exit_on_error = kwargs.get('exit_on_error', False)
+        self.disable_check = kwargs.get('disable_check', False)
+        self.disable_stats = kwargs.get('disable_stats', False)
+        self.disable_locks = kwargs.get('disable_locks', False)
+        self.include_paths = kwargs.get('include_paths', False)
+
+        # restic executable config
         self.rclone_program = kwargs.get('rclone_program')
         self.filter_hosts = kwargs.get('filter_hosts')
 
         # todo: the stats cache increases over time -> remove old ids
         # todo: cold start -> the stats cache could be saved in a persistent volume
-        # todo: cold start -> the restic cache (/root/.cache/restic) could be
-        # saved in a persistent volume
+
         self.stats_cache = {}
         self.metrics = {}
-        self.refresh(exit_on_error)
+        self.refresh(self.exit_on_error)
 
-    def get_base_cmd(self):
+    def get_base_cmd(self, storagebox=None):
+        pwd_file_path = self.password_file_path if not storagebox \
+            else os.path.join(self.password_file_path, str(storagebox))
+
         cmd = [
             "restic",
             "-r",
             self.repository,
             "-p",
-            self.password_file
+            pwd_file_path
         ]
 
         if self.rclone_program:
-            cmd.extend(['-o', f'rclone.program={self.rclone_program}'])
+            if storagebox:
+                cmd.extend(['-o', f'rclone.program={self.rclone_program} storagebox.{storagebox}'])
+            else:
+                cmd.extend(['-o', f'rclone.program={self.rclone_program}'])
 
         return cmd
 
     def collect(self):
         logging.debug("Incoming request")
+
+        common_host_labels = [
+            "storagebox",
+            "repository",
+        ]
 
         common_label_names = [
             "client_hostname",
@@ -64,20 +78,22 @@ class ResticCollector(object):
             "snapshot_paths",
         ]
 
+        common_label_names.extend(common_host_labels)
+
         check_success = GaugeMetricFamily(
             "restic_check_success",
             "Result of restic check operation in the repository",
-            labels=[],
+            labels=common_host_labels,
         )
         locks_total = CounterMetricFamily(
             "restic_locks_total",
             "Total number of locks in the repository",
-            labels=[],
+            labels=common_host_labels,
         )
         snapshots_total = CounterMetricFamily(
             "restic_snapshots_total",
             "Total number of snapshots in the repository",
-            labels=[],
+            labels=common_host_labels,
         )
         backup_timestamp = GaugeMetricFamily(
             "restic_backup_timestamp",
@@ -102,40 +118,48 @@ class ResticCollector(object):
         scrape_duration_seconds = GaugeMetricFamily(
             "restic_scrape_duration_seconds",
             "Amount of time each scrape takes",
-            labels=[],
+            labels=common_host_labels,
         )
 
-        check_success.add_metric([], self.metrics["check_success"])
-        locks_total.add_metric([], self.metrics["locks_total"])
-        snapshots_total.add_metric([], self.metrics["snapshots_total"])
-
-        for client in self.metrics["clients"]:
-            common_label_values = [
-                client["hostname"],
-                client["username"],
-                client["version"],
-                client["snapshot_hash"],
-                client["snapshot_tag"],
-                client["snapshot_paths"],
+        for metric in self.metrics:
+            common_host_label_values = [
+                metric["storagebox"],
+                metric["repository"],
             ]
 
-            backup_timestamp.add_metric(common_label_values, client["timestamp"])
-            backup_files_total.add_metric(common_label_values, client["files_total"])
-            backup_size_total.add_metric(common_label_values, client["size_total"])
-            backup_snapshots_total.add_metric(
-                common_label_values, client["snapshots_total"]
-            )
+            check_success.add_metric(common_host_label_values, metric["check_success"])
+            locks_total.add_metric(common_host_label_values, metric["locks_total"])
+            snapshots_total.add_metric(common_host_label_values, metric["snapshots_total"])
 
-        scrape_duration_seconds.add_metric([], self.metrics["duration"])
+            for client in metric["clients"]:
+                common_label_values = [
+                    client["hostname"],
+                    client["username"],
+                    client["version"],
+                    client["snapshot_hash"],
+                    client["snapshot_tag"],
+                    client["snapshot_paths"],
+                ]
 
-        yield check_success
-        yield locks_total
-        yield snapshots_total
-        yield backup_timestamp
-        yield backup_files_total
-        yield backup_size_total
-        yield backup_snapshots_total
-        yield scrape_duration_seconds
+                common_label_values.extend(common_host_label_values)
+
+                backup_timestamp.add_metric(common_label_values, client["timestamp"])
+                backup_files_total.add_metric(common_label_values, client["files_total"])
+                backup_size_total.add_metric(common_label_values, client["size_total"])
+                backup_snapshots_total.add_metric(
+                    common_label_values, client["snapshots_total"]
+                )
+
+            scrape_duration_seconds.add_metric([], metric["duration"])
+
+            yield check_success
+            yield locks_total
+            yield snapshots_total
+            yield backup_timestamp
+            yield backup_files_total
+            yield backup_size_total
+            yield backup_snapshots_total
+            yield scrape_duration_seconds
 
     def refresh(self, exit_on_error=False):
         try:
@@ -143,7 +167,7 @@ class ResticCollector(object):
         except Exception:
             logging.error(
                 "Unable to collect metrics from Restic. %s",
-                traceback.format_exc(0).replace("\n", " "),
+                traceback.format_exc(),
             )
 
             # Shutdown exporter for any error
@@ -151,10 +175,23 @@ class ResticCollector(object):
                 sys.exit(1)
 
     def get_metrics(self):
-        duration = time.time()
+        start = time.time()
 
-        # calc total number of snapshots per hash
-        all_snapshots = self.get_snapshots()
+        if self.storage_boxes:
+            metrics = []
+            for storagebox in self.storage_boxes:
+                metrics.append(self.get_storagebox_metrics(storagebox))
+
+        else:
+            metrics = [self.get_repo_metrics()]
+
+        return metrics
+
+    def _parse_metrics(self, storagebox: str = None):
+        start_time = time.time()
+
+        all_snapshots = self.get_snapshots(storagebox)
+
         snap_total_counter = {}
         for snap in all_snapshots:
             if snap["hash"] not in snap_total_counter:
@@ -162,8 +199,7 @@ class ResticCollector(object):
             else:
                 snap_total_counter[snap["hash"]] += 1
 
-        # get the latest snapshot per hash
-        latest_snapshots_dup = self.get_snapshots(True)
+        latest_snapshots_dup = self.get_snapshots(storagebox, True)
         latest_snapshots = {}
         for snap in latest_snapshots_dup:
             time_parsed = re.sub(r"\.[^+-]+", "", snap["time"])
@@ -175,13 +211,14 @@ class ResticCollector(object):
                 # restic 12: '2023-02-01T14:14:19.30760523Z' ->
                 # '2023-02-01T14:14:19'
                 time_format = "%Y-%m-%dT%H:%M:%S"
-            timestamp = time.mktime(
-                datetime.datetime.strptime(time_parsed, time_format).timetuple()
-            )
-            snap["timestamp"] = timestamp
-            if snap["hash"] not in latest_snapshots or \
+                timestamp = time.mktime(
+                    datetime.datetime.strptime(time_parsed, time_format).timetuple()
+                )
+
+                snap["timestamp"] = timestamp
+                if snap["hash"] not in latest_snapshots or \
                     snap["timestamp"] > latest_snapshots[snap["hash"]]["timestamp"]:
-                latest_snapshots[snap["hash"]] = snap
+                        latest_snapshots[snap["hash"]] = snap
 
         clients = []
         for snap in list(latest_snapshots.values()):
@@ -193,22 +230,23 @@ class ResticCollector(object):
                     "total_file_count": -1,
                 }
             else:
-                stats = self.get_stats(snap["id"])
-
-            clients.append(
-                {
-                    "hostname": snap["hostname"],
-                    "username": snap["username"],
-                    "version": snap["program_version"] if "program_version" in snap else "",
-                    "snapshot_hash": snap["hash"],
-                    "snapshot_tag": snap["tags"][0] if "tags" in snap else "",
-                    "snapshot_paths": ",".join(snap["paths"]) if self.include_paths else "",
-                    "timestamp": snap["timestamp"],
-                    "size_total": stats["total_size"],
-                    "files_total": stats["total_file_count"],
-                    "snapshots_total": snap_total_counter[snap["hash"]],
-                }
-            )
+                stats = self.get_stats(storagebox, snap["id"])
+                clients.append(
+                    {
+                        "storagebox": storagebox,
+                        "repository": self.repository_name,
+                        "hostname": snap["hostname"],
+                        "username": snap["username"],
+                        "version": snap["program_version"] if "program_version" in snap else "",
+                        "snapshot_hash": snap["hash"],
+                        "snapshot_tag": snap["tags"][0] if "tags" in snap else "",
+                        "snapshot_paths": ",".join(snap["paths"]) if self.include_paths else "",
+                        "timestamp": snap["timestamp"],
+                        "size_total": stats["total_size"],
+                        "files_total": stats["total_file_count"],
+                        "snapshots_total": snap_total_counter[snap["hash"]],
+                    }
+                )
 
         # todo: fix the commented code when the bug is fixed in restic
         #  https://github.com/restic/restic/issues/2126
@@ -218,28 +256,36 @@ class ResticCollector(object):
             # return 2 as "no-check" value
             check_success = 2
         else:
-            check_success = self.get_check()
+            check_success = self.get_check(storagebox)
 
         if self.disable_locks:
             # return 0 as "no-locks" value
             locks_total = 0
         else:
-            locks_total = self.get_locks()
+            locks_total = self.get_locks(storagebox)
 
         metrics = {
             "check_success": check_success,
             "locks_total": locks_total,
             "clients": clients,
             "snapshots_total": len(all_snapshots),
-            "duration": time.time() - duration
+            "duration": time.time() - start_time,
+            "storagebox": storagebox,
+            "repository": self.repository_name,
             # 'size_total': stats['total_size'],
             # 'files_total': stats['total_file_count'],
         }
 
         return metrics
 
-    def get_snapshots(self, only_latest=False):
-        cmd = self.get_base_cmd()
+    def get_storagebox_metrics(self, storagebox):
+        return self._parse_metrics(storagebox)
+
+    def get_repo_metrics(self):
+        return self._parse_metrics()
+
+    def get_snapshots(self, storagebox=None, only_latest=False):
+        cmd = self.get_base_cmd(storagebox)
 
         cmd.extend([
             "--no-lock",
@@ -250,31 +296,37 @@ class ResticCollector(object):
         if self.filter_hosts:
             cmd.extend(['--host', self.filter_hosts])
 
+        # TODO: Fetch total snapshots by tag
+        # TODO: Fetch latest snapshot by tag
+        # TODO: implement count of snapshots by tag and compare with retention policy
         if only_latest:
             cmd.extend(["--latest", "1"])
 
-        logging.info(f"Running {' '.join(cmd)}")
-
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
         if result.returncode != 0:
             raise Exception(
                 "Error executing restic snapshot command: " + self.parse_stderr(result)
             )
+
         snapshots = json.loads(result.stdout.decode("utf-8"))
+
         for snap in snapshots:
             if "username" not in snap:
                 snap["username"] = ""
+
             snap["hash"] = self.calc_snapshot_hash(snap)
+
         return snapshots
 
-    def get_stats(self, snapshot_id=None):
+    def get_stats(self, storagebox=None, snapshot_id=None):
         # This command is expensive in CPU/Memory (1-5 seconds),
         # and much more when snapshot_id=None (3 minutes) -> we avoid this call for now
         # https://github.com/restic/restic/issues/2126
         if snapshot_id is not None and snapshot_id in self.stats_cache:
             return self.stats_cache[snapshot_id]
 
-        cmd = self.get_base_cmd()
+        cmd = self.get_base_cmd(storagebox)
 
         cmd.extend([
             "--no-lock",
@@ -300,9 +352,9 @@ class ResticCollector(object):
 
         return stats
 
-    def get_check(self):
+    def get_check(self, storagebox=None):
         # This command takes 20 seconds or more, but it's required
-        cmd = self.get_base_cmd()
+        cmd = self.get_base_cmd(storagebox)
 
         cmd.extend([
             "--no-lock",
@@ -318,8 +370,8 @@ class ResticCollector(object):
             )
             return 0  # error
 
-    def get_locks(self):
-        cmd = self.get_base_cmd()
+    def get_locks(self, storagebox=None):
+        cmd = self.get_base_cmd(storagebox)
 
         cmd.extend([
             "list",
@@ -358,19 +410,25 @@ if __name__ == "__main__":
     logging.info("Starting Restic Prometheus Exporter")
     logging.info("It could take a while if the repository is remote")
 
-    restic_repository = None
-    restic_repo_password_file = None
+    repository = None
+    password_file = None
+    storageboxes = None
 
     try:
-        restic_repository = os.environ.get('RESTIC_REPOSITORY', None)
+        repository = os.environ.get('RESTIC_REPOSITORY', None)
 
-        if not restic_repository:
+        if not repository:
             raise Exception("RESTIC_REPOSITORY is required")
 
-        restic_repo_password_file = os.environ.get("RESTIC_REPO_PASSWORD_FILE", None)
+        password_file = os.environ.get("RESTIC_REPO_PASSWORD_FILE", None)
 
-        if not restic_repo_password_file:
+        if not password_file:
             raise Exception("RESTIC_REPO_PASSWORD_FILE is required")
+
+        storageboxes = os.environ.get("RESTIC_STORAGEBOXES", None)
+
+        if storageboxes:
+            storageboxes = storageboxes.split(',')
 
     except Exception as e:
         logging.error(e)
@@ -390,23 +448,30 @@ if __name__ == "__main__":
     rclone_program = os.environ.get('RCLONE_PROGRAM', None)
 
     # restic config
-    restic_filter_hosts = os.environ.get('RESTIC_FILTER_HOSTS', None)
-    restic_retention_policy = os.environ.get('RESTIC_RETENTION_POLICY', None)
+    filter_hosts = os.environ.get('RESTIC_FILTER_HOSTS', None)
+    retention_policy = os.environ.get('RESTIC_RETENTION_POLICY', None)
+
+    # repository info
+    repository_name = os.environ.get('RESTIC_REPOSITORY_NAME', 'default')
 
     # TODO: counts based on restic_retention_policy
 
     try:
         collector = ResticCollector(
-            restic_repository,
-            restic_repo_password_file,
-            exporter_exit_on_error,
-            exporter_disable_check,
-            exporter_disable_stats,
-            exporter_disable_locks,
-            exporter_include_paths,
+            repository,
+            password_file,
+            storageboxes,
+            # rclone and restic params
             rclone_program=rclone_program,
-            filter_hosts=restic_filter_hosts,
-            restic_retention_policy=restic_retention_policy,
+            filter_hosts=filter_hosts,
+            restic_retention_policy=retention_policy,
+            repository_name=repository_name,
+            # exporter params
+            exit_on_error=exporter_exit_on_error,
+            disable_checks=exporter_disable_check,
+            disable_stats=exporter_disable_stats,
+            disable_locks=exporter_disable_locks,
+            include_paths=exporter_include_paths,
         )
         REGISTRY.register(collector)
         start_http_server(exporter_port, exporter_address)
