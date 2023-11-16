@@ -78,7 +78,13 @@ class ResticCollector(object):
             "snapshot_paths",
         ]
 
+        per_tag_label_names = [
+            "snapshot_tag"
+        ]
+
+        # add common host labels to per_tag_label_names and common_label_names
         common_label_names.extend(common_host_labels)
+        per_tag_label_names.extend(common_host_labels)
 
         check_success = GaugeMetricFamily(
             "restic_check_success",
@@ -115,6 +121,11 @@ class ResticCollector(object):
             "Total number of snapshots",
             labels=common_label_names,
         )
+        backup_snapshots_by_type = GaugeMetricFamily(
+            "restic_backup_snapshots_by_type",
+            "Total number of snapshots by type",
+            labels=per_tag_label_names,
+        )
         scrape_duration_seconds = GaugeMetricFamily(
             "restic_scrape_duration_seconds",
             "Amount of time each scrape takes",
@@ -130,6 +141,15 @@ class ResticCollector(object):
             check_success.add_metric(common_host_label_values, metric["check_success"])
             locks_total.add_metric(common_host_label_values, metric["locks_total"])
             snapshots_total.add_metric(common_host_label_values, metric["snapshots_total"])
+
+            for tag, count in metric["snapshots_by_type"].items():
+                by_type_label_values = [
+                    tag,
+                ]
+
+                by_type_label_values.extend(common_host_label_values)
+
+                backup_snapshots_by_type.add_metric(by_type_label_values, count)
 
             for client in metric["clients"]:
                 common_label_values = [
@@ -159,6 +179,7 @@ class ResticCollector(object):
             yield backup_files_total
             yield backup_size_total
             yield backup_snapshots_total
+            yield backup_snapshots_by_type
             yield scrape_duration_seconds
 
     def refresh(self, exit_on_error=False):
@@ -193,11 +214,20 @@ class ResticCollector(object):
         all_snapshots = self.get_snapshots(storagebox)
 
         snap_total_counter = {}
+        snap_by_type_total_counter = {}
         for snap in all_snapshots:
+            # get total number of matching snapshots
             if snap["hash"] not in snap_total_counter:
                 snap_total_counter[snap["hash"]] = 1
             else:
                 snap_total_counter[snap["hash"]] += 1
+
+            # count snapshots by type
+            for tag in snap.get("tags", []):
+                if tag not in snap_by_type_total_counter:
+                    snap_by_type_total_counter[tag] = 1
+                else:
+                    snap_by_type_total_counter[tag] += 1
 
         latest_snapshots_dup = self.get_snapshots(storagebox, True)
         latest_snapshots = {}
@@ -265,6 +295,7 @@ class ResticCollector(object):
             locks_total = self.get_locks(storagebox)
 
         metrics = {
+            "snapshots_by_type": snap_by_type_total_counter,
             "check_success": check_success,
             "locks_total": locks_total,
             "clients": clients,
