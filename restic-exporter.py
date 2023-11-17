@@ -10,6 +10,9 @@ import subprocess
 import sys
 import traceback
 
+from dateutil import parser
+from datetime import datetime
+
 from prometheus_client import start_http_server
 from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily, REGISTRY
 
@@ -242,6 +245,31 @@ class ResticCollector(object):
 
         return metrics
 
+    def _parse_timestamp(self, timestamp):
+        parsed_timestamp = None
+        # New implementation: using dateutil.parser
+        try:
+            parsed_timestamp = parser.parse(timestamp).timestamp()
+
+        # fallback using old implementation with regex parsing
+        except Exception as e:
+            logging.warning(f"datetuil.parser: Unable to parse timestamp: {timestamp}, defaulting to regex parsing")
+            time_parsed = re.sub(r"\.[^+-]+", "", snap["time"])
+            if len(time_parsed) > 19:
+                # restic 14: '2023-01-12T06:59:33.1576588+01:00' ->
+                # '2023-01-12T06:59:33+01:00'
+                time_format = "%Y-%m-%dT%H:%M:%S%z"
+            else:
+                # restic 12: '2023-02-01T14:14:19.30760523Z' ->
+                # '2023-02-01T14:14:19'
+                time_format = "%Y-%m-%dT%H:%M:%S"
+
+            # simplified: absolutely no need to call time.mktime()
+            parsed_timestamp = datetime.strptime(time_parsed, time_format).astimezone().timestamp()
+
+        finally:
+            return str(round(parsed_timestamp))
+
     def _parse_metrics(self, storagebox: str = None):
         start_time = time.time()
 
@@ -268,7 +296,7 @@ class ResticCollector(object):
             snap_stats = self.get_stats(storagebox=storagebox, snapshot_id=snap["id"])
             snapshot_stats[snap["id"]] = {
                 "snapshot_tag": snap["tags"][0],
-                "snapshot_timestamp": snap["time"],
+                "snapshot_timestamp": self._parse_timestamp(snap["time"]),
                 "total_size": snap_stats.get('total_size', 0),
                 "total_file_count": snap_stats.get('total_file_count', 0),
             }
@@ -276,23 +304,9 @@ class ResticCollector(object):
         latest_snapshots_dup = self.get_snapshots(storagebox, True)
         latest_snapshots = {}
         for snap in latest_snapshots_dup:
-            time_parsed = re.sub(r"\.[^+-]+", "", snap["time"])
-            if len(time_parsed) > 19:
-                # restic 14: '2023-01-12T06:59:33.1576588+01:00' ->
-                # '2023-01-12T06:59:33+01:00'
-                time_format = "%Y-%m-%dT%H:%M:%S%z"
-            else:
-                # restic 12: '2023-02-01T14:14:19.30760523Z' ->
-                # '2023-02-01T14:14:19'
-                time_format = "%Y-%m-%dT%H:%M:%S"
-                timestamp = time.mktime(
-                    datetime.datetime.strptime(time_parsed, time_format).timetuple()
-                )
-
-                snap["timestamp"] = timestamp
-                if snap["hash"] not in latest_snapshots or \
-                    snap["timestamp"] > latest_snapshots[snap["hash"]]["timestamp"]:
-                        latest_snapshots[snap["hash"]] = snap
+            snap["timestamp"] = self._parse_timestamp(snap["time"])
+            if snap["hash"] not in latest_snapshots or snap["timestamp"] > latest_snapshots[snap["hash"]]["timestamp"]:
+                latest_snapshots[snap["hash"]] = snap
 
         clients = []
         for snap in list(latest_snapshots.values()):
@@ -307,7 +321,7 @@ class ResticCollector(object):
                 stats = self.get_stats(storagebox=storagebox, snapshot_id=snap["id"])
                 clients.append(
                     {
-                        "storagebox": storagebox,
+                        "storagebox": storagebox if storagebox else 'local',
                         "repository": self.repository_name,
                         "hostname": snap["hostname"],
                         "username": snap["username"],
