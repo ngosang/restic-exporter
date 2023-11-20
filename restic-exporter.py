@@ -110,12 +110,12 @@ class ResticCollector(object):
             "Result of restic check operation in the repository",
             labels=common_host_labels,
         )
-        locks_total = CounterMetricFamily(
+        locks_total = GaugeMetricFamily(
             "restic_locks_total",
             "Total number of locks in the repository",
             labels=common_host_labels,
         )
-        snapshots_total = CounterMetricFamily(
+        snapshots_total = GaugeMetricFamily(
             "restic_snapshots_total",
             "Total number of snapshots in the repository",
             labels=common_host_labels,
@@ -125,17 +125,17 @@ class ResticCollector(object):
             "Timestamp of the last backup",
             labels=common_label_names,
         )
-        backup_files_total = CounterMetricFamily(
+        backup_files_total = GaugeMetricFamily(
             "restic_backup_files_total",
             "Number of files in the backup",
             labels=common_label_names,
         )
-        backup_size_total = CounterMetricFamily(
+        backup_size_total = GaugeMetricFamily(
             "restic_backup_size_total",
             "Total size of backup in bytes",
             labels=common_label_names,
         )
-        backup_snapshots_total = CounterMetricFamily(
+        backup_snapshots_total = GaugeMetricFamily(
             "restic_backup_snapshots_total",
             "Total number of snapshots",
             labels=common_label_names,
