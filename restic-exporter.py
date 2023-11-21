@@ -183,7 +183,7 @@ class ResticCollector(object):
                     "username": snap["username"],
                     "version": snap["program_version"] if "program_version" in snap else "",
                     "snapshot_hash": snap["hash"],
-                    "snapshot_tag": snap["tags"][0] if "tags" in snap else "",
+                    "snapshot_tag": ",".join(snap["tags"]) if "tags" in snap else "",
                     "snapshot_paths": ",".join(snap["paths"]) if self.include_paths else "",
                     "timestamp": snap["timestamp"],
                     "size_total": stats["total_size"],
