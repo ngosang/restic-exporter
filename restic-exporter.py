@@ -107,9 +107,16 @@ class ResticCollector(object):
 
         check_success = GaugeMetricFamily(
             "restic_check_success",
-            "Result of restic check operation in the repository",
+            "Result of restic check operation",
+            labels=[],
+        )
+
+        repo_check_success = GaugeMetricFamily(
+            "restic_repo_check_success",
+            "Result of restic check operation for specific repository",
             labels=common_host_labels,
         )
+
         locks_total = GaugeMetricFamily(
             "restic_locks_total",
             "Total number of locks in the repository",
@@ -182,13 +189,17 @@ class ResticCollector(object):
             labels=retention_policy_labels,
         )
 
+        total_scrape_duration = 0
+        scrape_success = True
         for metric in self.metrics:
             common_host_label_values = [
                 metric["storagebox"],
                 metric["repository"],
             ]
 
-            check_success.add_metric(common_host_label_values, metric["check_success"])
+            scrape_success = bool(metric["check_success"]) and scrape_success
+
+            repo_check_success.add_metric(common_host_label_values, metric["check_success"])
             locks_total.add_metric(common_host_label_values, metric["locks_total"])
             snapshots_total.add_metric(common_host_label_values, metric["snapshots_total"])
 
@@ -243,22 +254,27 @@ class ResticCollector(object):
                     common_label_values, client["snapshots_total"]
                 )
 
-            scrape_duration_seconds.add_metric([], metric["duration"])
+            total_scrape_duration += metric["duration"]
 
-            yield check_success
-            yield locks_total
-            yield snapshots_total
-            yield backup_timestamp
-            yield backup_files_total
-            yield backup_size_total
-            yield backup_snapshots_total
-            yield backup_snapshots_by_type
-            yield snapshot_size
-            yield snapshot_files_count
-            yield snapshot_retention_policy
-            yield snapshots_by_retention_policy
-            yield snapshots_by_retention_policy_state
-            yield scrape_duration_seconds
+        yield repo_check_success
+        yield locks_total
+        yield snapshots_total
+        yield backup_timestamp
+        yield backup_files_total
+        yield backup_size_total
+        yield backup_snapshots_total
+        yield backup_snapshots_by_type
+        yield snapshot_size
+        yield snapshot_files_count
+        yield snapshot_retention_policy
+        yield snapshots_by_retention_policy
+        yield snapshots_by_retention_policy_state
+
+        scrape_duration_seconds.add_metric([], total_scrape_duration)
+        check_success.add_metric([], scrape_success)
+
+        yield scrape_duration_seconds
+        yield check_success
 
     def refresh(self, exit_on_error=False):
         try:
