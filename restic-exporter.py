@@ -347,16 +347,28 @@ if __name__ == "__main__":
     logging.info("Starting Restic Prometheus Exporter")
     logging.info("It could take a while if the repository is remote")
 
-    try:
-        restic_repo_url = os.environ["RESTIC_REPO_URL"]
-    except Exception:
-        logging.error("The environment variable RESTIC_REPO_URL is mandatory")
+    restic_repo_url = os.environ.get("RESTIC_REPOSITORY")
+    if restic_repo_url is None:
+        restic_repo_url = os.environ.get("RESTIC_REPO_URL")
+        if restic_repo_url is not None:
+            logging.warning(
+                "The environment variable RESTIC_REPO_URL is deprecated, "
+                "please use RESTIC_REPOSITORY instead."
+            )
+    if restic_repo_url is None:
+        logging.error("The environment variable RESTIC_REPOSITORY is mandatory")
         sys.exit(1)
 
-    try:
-        restic_repo_password_file = os.environ["RESTIC_REPO_PASSWORD_FILE"]
-    except Exception:
-        logging.error("The environment variable RESTIC_REPO_PASSWORD_FILE is mandatory")
+    restic_repo_password_file = os.environ.get("RESTIC_PASSWORD_FILE")
+    if restic_repo_password_file is None:
+        restic_repo_password_file = os.environ.get("RESTIC_REPO_PASSWORD_FILE")
+        if restic_repo_password_file is not None:
+            logging.warning(
+                "The environment variable RESTIC_REPO_PASSWORD_FILE is deprecated, "
+                "please use RESTIC_PASSWORD_FILE instead."
+            )
+    if restic_repo_password_file is None:
+        logging.error("The environment variable RESTIC_PASSWORD_FILE is mandatory")
         sys.exit(1)
 
     exporter_address = os.environ.get("LISTEN_ADDRESS", "0.0.0.0")

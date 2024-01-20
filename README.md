@@ -19,8 +19,8 @@ Requirements:
 ```bash
 pip install -r /requirements.txt
 
-export RESTIC_REPO_URL=/data
-export RESTIC_REPO_PASSWORD_FILE=/restic_password_file
+export RESTIC_REPOSITORY=/data
+export RESTIC_PASSWORD_FILE=/restic_password_file
 python restic-exporter.py
 ```
 
@@ -59,9 +59,9 @@ services:
     container_name: restic-exporter
     environment:
       - TZ=Europe/Madrid
-      - RESTIC_REPO_URL=/data
-      - RESTIC_REPO_PASSWORD=<password_here>
-      # - RESTIC_REPO_PASSWORD_FILE=</file_with_password_here>
+      - RESTIC_REPOSITORY=/data
+      - RESTIC_PASSWORD=<password_here>
+      # - RESTIC_PASSWORD_FILE=</file_with_password_here>
       - REFRESH_INTERVAL=1800 # 30 min
     volumes:
       - /host_path/restic/data:/data
@@ -76,8 +76,8 @@ services:
 docker run -d \
   --name=restic-exporter \
   -e TZ=Europe/Madrid \
-  -e RESTIC_REPO_URL=/data \
-  -e RESTIC_REPO_PASSWORD=<password_here> \
+  -e RESTIC_REPOSITORY=/data \
+  -e RESTIC_PASSWORD=<password_here> \
   -e REFRESH_INTERVAL=1800 \
   -p 8001:8001 \
   --restart unless-stopped \
@@ -91,17 +91,17 @@ Some of them need additional environment variables for the secrets.
 
 All configuration is done with environment variables:
 
-- `RESTIC_REPO_URL`: Restic repository URL. All backends are supported. Examples:
+- `RESTIC_REPOSITORY`: Restic repository URL. All backends are supported. Examples:
   * Local repository: `/data`
   * REST Server: `rest:http://user:password@127.0.0.1:8000/`
   * Amazon S3: `s3:s3.amazonaws.com/bucket_name`
   * Backblaze B2: `b2:bucketname:path/to/repo`
   * Rclone (see notes below): `rclone:gd-backup:/restic`
 
-- `RESTIC_REPO_PASSWORD`: Restic repository password in plain text. This is only
-required if `RESTIC_REPO_PASSWORD_FILE` is not defined.
-- `RESTIC_REPO_PASSWORD_FILE`: File with the Restic repository password in plain
-text. This is only required if `RESTIC_REPO_PASSWORD` is not defined. Remember
+- `RESTIC_PASSWORD`: Restic repository password in plain text. This is only
+required if `RESTIC_PASSWORD_FILE` is not defined.
+- `RESTIC_PASSWORD_FILE`: File with the Restic repository password in plain
+text. This is only required if `RESTIC_PASSWORD` is not defined. Remember
 to mount the Docker volume with the file.
 - `AWS_ACCESS_KEY_ID`: (Optional) Required for Amazon S3, Minio and Wasabi
 backends.
@@ -138,8 +138,8 @@ services:
     container_name: restic-exporter
     environment:
       - TZ=Europe/Madrid
-      - RESTIC_REPO_URL=rclone:gd-backup:/restic
-      - RESTIC_REPO_PASSWORD= 
+      - RESTIC_REPOSITORY=rclone:gd-backup:/restic
+      - RESTIC_PASSWORD= 
       - REFRESH_INTERVAL=1800 # 30 min
     volumes:
       - /host_path/restic/data:/data
