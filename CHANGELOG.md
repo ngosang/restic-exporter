@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.0 (2024/01/20)
+
+* Replaced RESTIC_REPO_URL, RESTIC_REPO_PASSWORD and RESTIC_REPO_PASSWORD_FILE environment variables with the Restic equivalents
+* Add new label "snapshot_tags" in the list of tags separated by comma. The label "snapshot_tag" only contains the first tag
+* Update Restic 0.16.3
+* Update Python dependencies
+* Update base Docker image to Alpine 3.19
+
 ## 1.4.0 (2023/10/14)
 
 * Include metric label client_version. Resolves #5
