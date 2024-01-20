@@ -1,6 +1,6 @@
 FROM golang:1.20-alpine3.19 AS builder
 
-ENV RESTIC_VERSION 0.16.0
+ENV RESTIC_VERSION 0.16.3
 ENV CGO_ENABLED 0
 
 RUN cd /tmp \
