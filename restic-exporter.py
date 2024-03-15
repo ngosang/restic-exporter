@@ -321,7 +321,13 @@ class ResticCollector(object):
                 "Error executing restic list locks command: " + self.parse_stderr(result)
             )
         text_result = result.stdout.decode("utf-8")
-        return len(text_result.split("\n")) - 1
+        lock_counter = 0
+        for line in text_result.split("\n"):
+            if re.match("^[a-z0-9]+$", line):
+                lock_counter += 1
+        logging.info(f"Found {lock_counter} locks in repository.")
+
+        return lock_counter
 
     @staticmethod
     def calc_snapshot_hash(snapshot: dict) -> str:
