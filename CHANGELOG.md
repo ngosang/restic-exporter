@@ -1,5 +1,10 @@
 # Changelog
 
+
+## next_release
+
+* Added INSECURE_TLS env var - now is possible to skip TLS verification for self-signed certificates
+
 ## 1.5.0 (2024/01/20)
 
 * Replaced RESTIC_REPO_URL, RESTIC_REPO_PASSWORD and RESTIC_REPO_PASSWORD_FILE environment variables with the Restic equivalents
