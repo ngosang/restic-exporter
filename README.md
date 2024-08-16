@@ -125,6 +125,7 @@ reasons. Default is `False` (perform `restic check`).
 reasons. Default is `False` (collect per backup statistics).
 - `NO_LOCKS`: (Optional) Do not collect the number of locks. Default is `False` (collect the number of locks).
 - `INCLUDE_PATHS`: (Optional) Include snapshot paths for each backup. The paths are separated by commas. Default is `False` (not collect the paths).
+- `INSECURE_TLS`: (Optional) skip TLS verification for self-signed certificates. Default is `False` (not skip).
 
 ### Configuration for Rclone
 

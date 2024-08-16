@@ -17,7 +17,7 @@ from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily, REGIS
 class ResticCollector(object):
     def __init__(
         self, repository, password_file, exit_on_error, disable_check,
-            disable_stats, disable_locks, include_paths
+            disable_stats, disable_locks, include_paths, insecure_tls
     ):
         self.repository = repository
         self.password_file = password_file
@@ -26,6 +26,7 @@ class ResticCollector(object):
         self.disable_stats = disable_stats
         self.disable_locks = disable_locks
         self.include_paths = include_paths
+        self.insecure_tls = insecure_tls
         # todo: the stats cache increases over time -> remove old ids
         # todo: cold start -> the stats cache could be saved in a persistent volume
         # todo: cold start -> the restic cache (/root/.cache/restic) could be
@@ -238,6 +239,9 @@ class ResticCollector(object):
         if only_latest:
             cmd.extend(["--latest", "1"])
 
+        if self.insecure_tls:
+            cmd.extend(["--insecure-tls"])
+
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception(
@@ -270,6 +274,9 @@ class ResticCollector(object):
         if snapshot_id is not None:
             cmd.extend([snapshot_id])
 
+        if self.insecure_tls:
+            cmd.extend(["--insecure-tls"])
+
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception(
@@ -294,6 +301,9 @@ class ResticCollector(object):
             "check",
         ]
 
+        if self.insecure_tls:
+            cmd.extend(["--insecure-tls"])
+
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode == 0:
             return 1  # ok
@@ -314,6 +324,9 @@ class ResticCollector(object):
             "list",
             "locks",
         ]
+
+        if self.insecure_tls:
+            cmd.extend(["--insecure-tls"])
 
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
@@ -384,6 +397,7 @@ if __name__ == "__main__":
     exporter_disable_stats = bool(os.environ.get("NO_STATS", False))
     exporter_disable_locks = bool(os.environ.get("NO_LOCKS", False))
     exporter_include_paths = bool(os.environ.get("INCLUDE_PATHS", False))
+    exporter_insecure_tls = bool(os.environ.get("INSECURE_TLS", False))
 
     try:
         collector = ResticCollector(
@@ -394,6 +408,7 @@ if __name__ == "__main__":
             exporter_disable_stats,
             exporter_disable_locks,
             exporter_include_paths,
+            exporter_insecure_tls,
         )
         REGISTRY.register(collector)
         start_http_server(exporter_port, exporter_address)
