@@ -325,7 +325,6 @@ class ResticCollector(object):
         for line in text_result.split("\n"):
             if re.match("^[a-z0-9]+$", line):
                 lock_counter += 1
-        logging.info(f"Found {lock_counter} locks in repository.")
 
         return lock_counter
 
