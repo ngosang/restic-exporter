@@ -1,9 +1,12 @@
 # Changelog
 
+## 1.6.0 (2024/08/16)
 
-## next_release
-
-* Added INSECURE_TLS env var - now is possible to skip TLS verification for self-signed certificates
+* Fix lock count for latest versions of Restic
+* Added INSECURE_TLS environment variable skip TLS verification for self-signed certificates
+* Update Restic 0.17.0 (built with Go 1.22.6)
+* Update Python dependencies
+* Update base Docker image to Alpine 3.20
 
 ## 1.5.0 (2024/01/20)
 
