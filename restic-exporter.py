@@ -4,20 +4,27 @@ import hashlib
 import json
 import logging
 import os
-import time
 import re
 import subprocess
 import sys
+import time
 import traceback
 
 from prometheus_client import start_http_server
-from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily, REGISTRY
+from prometheus_client.core import REGISTRY, CounterMetricFamily, GaugeMetricFamily
 
 
 class ResticCollector(object):
     def __init__(
-        self, repository, password_file, exit_on_error, disable_check,
-            disable_stats, disable_locks, include_paths, insecure_tls
+        self,
+        repository,
+        password_file,
+        exit_on_error,
+        disable_check,
+        disable_stats,
+        disable_locks,
+        include_paths,
+        insecure_tls,
     ):
         self.repository = repository
         self.password_file = password_file
@@ -164,8 +171,10 @@ class ResticCollector(object):
                 datetime.datetime.strptime(time_parsed, time_format).timetuple()
             )
             snap["timestamp"] = timestamp
-            if snap["hash"] not in latest_snapshots or \
-                    snap["timestamp"] > latest_snapshots[snap["hash"]]["timestamp"]:
+            if (
+                snap["hash"] not in latest_snapshots
+                or snap["timestamp"] > latest_snapshots[snap["hash"]]["timestamp"]
+            ):
                 latest_snapshots[snap["hash"]] = snap
 
         clients = []
@@ -184,11 +193,15 @@ class ResticCollector(object):
                 {
                     "hostname": snap["hostname"],
                     "username": snap["username"],
-                    "version": snap["program_version"] if "program_version" in snap else "",
+                    "version": (
+                        snap["program_version"] if "program_version" in snap else ""
+                    ),
                     "snapshot_hash": snap["hash"],
                     "snapshot_tag": snap["tags"][0] if "tags" in snap else "",
                     "snapshot_tags": ",".join(snap["tags"]) if "tags" in snap else "",
-                    "snapshot_paths": ",".join(snap["paths"]) if self.include_paths else "",
+                    "snapshot_paths": (
+                        ",".join(snap["paths"]) if self.include_paths else ""
+                    ),
                     "timestamp": snap["timestamp"],
                     "size_total": stats["total_size"],
                     "files_total": stats["total_file_count"],
@@ -217,7 +230,7 @@ class ResticCollector(object):
             "locks_total": locks_total,
             "clients": clients,
             "snapshots_total": len(all_snapshots),
-            "duration": time.time() - duration
+            "duration": time.time() - duration,
             # 'size_total': stats['total_size'],
             # 'files_total': stats['total_file_count'],
         }
@@ -331,7 +344,8 @@ class ResticCollector(object):
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception(
-                "Error executing restic list locks command: " + self.parse_stderr(result)
+                "Error executing restic list locks command: "
+                + self.parse_stderr(result)
             )
         text_result = result.stdout.decode("utf-8")
         lock_counter = 0
