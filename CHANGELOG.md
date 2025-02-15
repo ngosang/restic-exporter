@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.0 (2025/02/15)
+
+* Add libc6-compat library to support rclone in arm64
+* Update Restic 0.17.3 (built with Go 1.22.12)
+* Update Python dependencies
+* Update base Docker image to Alpine 3.21
+
 ## 1.6.0 (2024/08/16)
 
 * Fix lock count for latest versions of Restic
