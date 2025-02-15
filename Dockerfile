@@ -14,7 +14,8 @@ RUN cd /tmp \
 
 FROM python:3.12-alpine3.21
 
-RUN apk add --no-cache --update openssh tzdata
+# libc6-compat => https://github.com/ngosang/restic-exporter/issues/36
+RUN apk add --no-cache --update openssh tzdata libc6-compat
 
 COPY --from=builder /tmp/restic /usr/bin
 COPY entrypoint.sh requirements.txt /
