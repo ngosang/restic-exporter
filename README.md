@@ -10,7 +10,7 @@ Prometheus exporter for the [Restic](https://github.com/restic/restic) backup sy
 
 ## Install
 
-### Form source code
+### From source code
 
 Requirements:
  * Python 3
@@ -112,6 +112,13 @@ backends.
 - `REFRESH_INTERVAL`: (Optional) Refresh interval for the metrics in seconds.
 Computing the metrics is an expensive task, keep this value as high as possible.
 Default is `60` seconds.
+  - **WARNING**: With default settings, downloading from remote repositories
+may be costly if using this exporter with a remote Cloud-based restic repository
+(e.g. GCP GCS, Amazon S3). This may cause a surprisingly high spike in your
+infrastructure costs (e.g. for small restic repositories that don't download
+frequently, this may increase your costs by multiple orders of magnitude).
+Consider setting `REFRESH_INTERVAL` to considerably higher values (e.g. `86400`
+for once per day) to lower this impact.
 - `LISTEN_PORT`: (Optional) The address the exporter should listen on. The
 default is `8001`.
 - `LISTEN_ADDRESS`: (Optional) The address the exporter should listen on. The
