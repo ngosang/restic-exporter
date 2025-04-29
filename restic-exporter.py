@@ -17,8 +17,6 @@ from prometheus_client.core import REGISTRY, CounterMetricFamily, GaugeMetricFam
 class ResticCollector(object):
     def __init__(
         self,
-        repository,
-        password_file,
         exit_on_error,
         disable_check,
         disable_stats,
@@ -26,8 +24,6 @@ class ResticCollector(object):
         include_paths,
         insecure_tls,
     ):
-        self.repository = repository
-        self.password_file = password_file
         self.exit_on_error = exit_on_error
         self.disable_check = disable_check
         self.disable_stats = disable_stats
@@ -240,10 +236,6 @@ class ResticCollector(object):
     def get_snapshots(self, only_latest=False):
         cmd = [
             "restic",
-            "-r",
-            self.repository,
-            "-p",
-            self.password_file,
             "--no-lock",
             "snapshots",
             "--json",
@@ -276,10 +268,6 @@ class ResticCollector(object):
 
         cmd = [
             "restic",
-            "-r",
-            self.repository,
-            "-p",
-            self.password_file,
             "--no-lock",
             "stats",
             "--json",
@@ -306,10 +294,6 @@ class ResticCollector(object):
         # This command takes 20 seconds or more, but it's required
         cmd = [
             "restic",
-            "-r",
-            self.repository,
-            "-p",
-            self.password_file,
             "--no-lock",
             "check",
         ]
@@ -329,10 +313,6 @@ class ResticCollector(object):
     def get_locks(self):
         cmd = [
             "restic",
-            "-r",
-            self.repository,
-            "-p",
-            self.password_file,
             "--no-lock",
             "list",
             "locks",
@@ -379,28 +359,12 @@ if __name__ == "__main__":
     logging.info("Starting Restic Prometheus Exporter")
     logging.info("It could take a while if the repository is remote")
 
-    restic_repo_url = os.environ.get("RESTIC_REPOSITORY")
-    if restic_repo_url is None:
-        restic_repo_url = os.environ.get("RESTIC_REPO_URL")
-        if restic_repo_url is not None:
-            logging.warning(
-                "The environment variable RESTIC_REPO_URL is deprecated, "
-                "please use RESTIC_REPOSITORY instead."
-            )
-    if restic_repo_url is None:
+    if os.environ.get("RESTIC_REPOSITORY") is None:
         logging.error("The environment variable RESTIC_REPOSITORY is mandatory")
         sys.exit(1)
 
-    restic_repo_password_file = os.environ.get("RESTIC_PASSWORD_FILE")
-    if restic_repo_password_file is None:
-        restic_repo_password_file = os.environ.get("RESTIC_REPO_PASSWORD_FILE")
-        if restic_repo_password_file is not None:
-            logging.warning(
-                "The environment variable RESTIC_REPO_PASSWORD_FILE is deprecated, "
-                "please use RESTIC_PASSWORD_FILE instead."
-            )
-    if restic_repo_password_file is None:
-        logging.error("The environment variable RESTIC_PASSWORD_FILE is mandatory")
+    if os.environ.get("RESTIC_PASSWORD") is None and os.environ.get("RESTIC_PASSWORD_FILE") is None and os.environ.get("$RESTIC_PASSWORD_COMMAND") is None:
+        logging.error("One of the environment variables RESTIC_PASSWORD, RESTIC_PASSWORD_FILE or RESTIC_PASSWORD_COMMAND is mandatory")
         sys.exit(1)
 
     exporter_address = os.environ.get("LISTEN_ADDRESS", "0.0.0.0")
@@ -415,8 +379,6 @@ if __name__ == "__main__":
 
     try:
         collector = ResticCollector(
-            restic_repo_url,
-            restic_repo_password_file,
             exporter_exit_on_error,
             exporter_disable_check,
             exporter_disable_stats,
