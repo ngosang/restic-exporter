@@ -90,6 +90,11 @@ class ResticCollector(object):
             "Total number of snapshots",
             labels=common_label_names,
         )
+        backup_duration_seconds = GaugeMetricFamily(
+            "restic_backup_duration_seconds",
+            "Amount of time each backup takes",
+            labels=common_label_names
+        )
         scrape_duration_seconds = GaugeMetricFamily(
             "restic_scrape_duration_seconds",
             "Amount of time each scrape takes",
@@ -111,11 +116,17 @@ class ResticCollector(object):
                 client["snapshot_paths"],
             ]
 
-            backup_timestamp.add_metric(common_label_values, client["timestamp"])
-            backup_files_total.add_metric(common_label_values, client["files_total"])
-            backup_size_total.add_metric(common_label_values, client["size_total"])
+            backup_timestamp.add_metric(
+                common_label_values, client["timestamp"])
+            backup_files_total.add_metric(
+                common_label_values, client["files_total"])
+            backup_size_total.add_metric(
+                common_label_values, client["size_total"])
             backup_snapshots_total.add_metric(
                 common_label_values, client["snapshots_total"]
+            )
+            backup_duration_seconds.add_metric(
+                common_label_values, client["duration_seconds"]
             )
 
         scrape_duration_seconds.add_metric([], self.metrics["duration"])
@@ -127,6 +138,7 @@ class ResticCollector(object):
         yield backup_files_total
         yield backup_size_total
         yield backup_snapshots_total
+        yield backup_duration_seconds
         yield scrape_duration_seconds
 
     def refresh(self, exit_on_error=False):
@@ -168,7 +180,8 @@ class ResticCollector(object):
                 # '2023-02-01T14:14:19'
                 time_format = "%Y-%m-%dT%H:%M:%S"
             timestamp = time.mktime(
-                datetime.datetime.strptime(time_parsed, time_format).timetuple()
+                datetime.datetime.strptime(
+                    time_parsed, time_format).timetuple()
             )
             snap["timestamp"] = timestamp
             if (
@@ -206,6 +219,7 @@ class ResticCollector(object):
                     "size_total": stats["total_size"],
                     "files_total": stats["total_file_count"],
                     "snapshots_total": snap_total_counter[snap["hash"]],
+                    "duration_seconds": self.calc_duration(snap)
                 }
             )
 
@@ -255,10 +269,12 @@ class ResticCollector(object):
         if self.insecure_tls:
             cmd.extend(["--insecure-tls"])
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception(
-                "Error executing restic snapshot command: " + self.parse_stderr(result)
+                "Error executing restic snapshot command: " +
+                self.parse_stderr(result)
             )
         snapshots = json.loads(result.stdout.decode("utf-8"))
         for snap in snapshots:
@@ -290,10 +306,12 @@ class ResticCollector(object):
         if self.insecure_tls:
             cmd.extend(["--insecure-tls"])
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception(
-                "Error executing restic stats command: " + self.parse_stderr(result)
+                "Error executing restic stats command: " +
+                self.parse_stderr(result)
             )
         stats = json.loads(result.stdout.decode("utf-8"))
 
@@ -317,12 +335,14 @@ class ResticCollector(object):
         if self.insecure_tls:
             cmd.extend(["--insecure-tls"])
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode == 0:
             return 1  # ok
         else:
             logging.warning(
-                "Error checking the repository health. " + self.parse_stderr(result)
+                "Error checking the repository health. " +
+                self.parse_stderr(result)
             )
             return 0  # error
 
@@ -341,7 +361,8 @@ class ResticCollector(object):
         if self.insecure_tls:
             cmd.extend(["--insecure-tls"])
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception(
                 "Error executing restic list locks command: "
@@ -357,8 +378,23 @@ class ResticCollector(object):
 
     @staticmethod
     def calc_snapshot_hash(snapshot: dict) -> str:
-        text = snapshot["hostname"] + snapshot["username"] + ",".join(snapshot["paths"])
+        text = snapshot["hostname"] + \
+            snapshot["username"] + ",".join(snapshot["paths"])
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def calc_duration(self, snapshot: dict) -> float:
+        backup_start = snapshot.get('summary', {}).get('backup_start')
+        backup_end = snapshot.get('summary', {}).get('backup_end')
+        if not backup_start or not backup_end:
+            return 0.0
+        try:
+            start_time = datetime.datetime.fromisoformat(backup_start)
+            end_time = datetime.datetime.fromisoformat(backup_end)
+            duration = end_time - start_time
+            return duration.total_seconds()
+        except Exception as e:
+            logging.warning(f"Could not parse backup_start or backup_end: {e}")
+            return 0.0
 
     @staticmethod
     def parse_stderr(result):
@@ -388,7 +424,8 @@ if __name__ == "__main__":
                 "please use RESTIC_REPOSITORY instead."
             )
     if restic_repo_url is None:
-        logging.error("The environment variable RESTIC_REPOSITORY is mandatory")
+        logging.error(
+            "The environment variable RESTIC_REPOSITORY is mandatory")
         sys.exit(1)
 
     restic_repo_password_file = os.environ.get("RESTIC_PASSWORD_FILE")
@@ -400,7 +437,8 @@ if __name__ == "__main__":
                 "please use RESTIC_PASSWORD_FILE instead."
             )
     if restic_repo_password_file is None:
-        logging.error("The environment variable RESTIC_PASSWORD_FILE is mandatory")
+        logging.error(
+            "The environment variable RESTIC_PASSWORD_FILE is mandatory")
         sys.exit(1)
 
     exporter_address = os.environ.get("LISTEN_ADDRESS", "0.0.0.0")
@@ -432,7 +470,8 @@ if __name__ == "__main__":
 
         while True:
             logging.info(
-                "Refreshing stats every {0} seconds".format(exporter_refresh_interval)
+                "Refreshing stats every {0} seconds".format(
+                    exporter_refresh_interval)
             )
             time.sleep(exporter_refresh_interval)
             collector.refresh()
