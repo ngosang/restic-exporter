@@ -1,7 +1,7 @@
 FROM golang:1.22.12-alpine3.21 AS builder
 
-ENV RESTIC_VERSION 0.17.3
-ENV CGO_ENABLED 0
+ENV RESTIC_VERSION=0.17.3
+ENV CGO_ENABLED=0
 
 RUN cd /tmp \
     # download restic source code
