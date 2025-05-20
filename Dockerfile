@@ -1,6 +1,6 @@
-FROM golang:1.22.12-alpine3.21 AS builder
+FROM golang:1.24.3-alpine3.21 AS builder
 
-ENV RESTIC_VERSION=0.17.3
+ENV RESTIC_VERSION=0.18.0
 ENV CGO_ENABLED=0
 
 RUN cd /tmp \
