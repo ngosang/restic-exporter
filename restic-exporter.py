@@ -12,9 +12,10 @@ import traceback
 
 from prometheus_client import start_http_server
 from prometheus_client.core import REGISTRY, CounterMetricFamily, GaugeMetricFamily
+from prometheus_client.registry import Collector
 
 
-class ResticCollector:
+class ResticCollector(Collector):
     def __init__(
         self,
         repository,
