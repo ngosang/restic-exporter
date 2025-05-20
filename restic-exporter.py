@@ -14,7 +14,10 @@ from prometheus_client import start_http_server
 from prometheus_client.core import REGISTRY, CounterMetricFamily, GaugeMetricFamily
 
 
-class ResticCollector(object):
+from prometheus_client.core import Collector
+
+
+class ResticCollector(Collector):
     def __init__(
         self,
         repository,
