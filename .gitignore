@@ -7,3 +7,4 @@ _trial_temp/
 .run/
 repo.key
 repo.txt
+build.log
