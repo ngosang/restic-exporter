@@ -91,6 +91,31 @@ class ResticCollector(Collector):
             "Total number of snapshots",
             labels=common_label_names,
         )
+        backup_files_new = GaugeMetricFamily(
+            "restic_backup_files_new",
+            "Number of new files in the backup",
+            labels=common_label_names
+        )
+        backup_files_changed = GaugeMetricFamily(
+            "restic_backup_files_changed",
+            "Number of changed files in the backup",
+            labels=common_label_names
+        )
+        backup_files_unmodified = GaugeMetricFamily(
+            "restic_backup_files_unmodified",
+            "Number of unmodified files in the backup",
+            labels=common_label_names
+        )
+        backup_files_processed = GaugeMetricFamily(
+            "restic_backup_files_processed",
+            "Number of files processed in the last backup",
+            labels=common_label_names
+        )
+        backup_bytes_processed = GaugeMetricFamily(
+            "restic_backup_bytes_processed",
+            "Number of bytes processed in the last backup",
+            labels=common_label_names
+        )
         backup_duration_seconds = GaugeMetricFamily(
             "restic_backup_duration_seconds",
             "Amount of time each backup takes",
@@ -126,6 +151,25 @@ class ResticCollector(Collector):
             backup_snapshots_total.add_metric(
                 common_label_values, client["snapshots_total"]
             )
+
+            # Snapshot specific metrics
+            backup_files_new.add_metric(
+                common_label_values, client["files_new"]
+            )
+            backup_files_changed.add_metric(
+                common_label_values, client["files_changed"]
+            )
+            backup_files_unmodified.add_metric(
+                common_label_values, client["files_unmodified"]
+            )
+            backup_files_processed.add_metric(
+                common_label_values, client["total_files_processed"]
+            )
+            backup_bytes_processed.add_metric(
+                common_label_values, client["total_bytes_processed"]
+            )
+
+            # Scrape duration
             backup_duration_seconds.add_metric(
                 common_label_values, client["duration_seconds"]
             )
@@ -140,6 +184,11 @@ class ResticCollector(Collector):
         yield backup_size_total
         yield backup_snapshots_total
         yield backup_duration_seconds
+        yield backup_files_new
+        yield backup_files_changed
+        yield backup_files_unmodified
+        yield backup_files_processed
+        yield backup_bytes_processed
         yield scrape_duration_seconds
 
     def refresh(self, exit_on_error=False):
@@ -171,19 +220,8 @@ class ResticCollector(Collector):
         latest_snapshots_dup = self.get_snapshots(True)
         latest_snapshots = {}
         for snap in latest_snapshots_dup:
-            time_parsed = re.sub(r"\.[^+-]+", "", snap["time"])
-            if len(time_parsed) > 19:
-                # restic 14: '2023-01-12T06:59:33.1576588+01:00' ->
-                # '2023-01-12T06:59:33+01:00'
-                time_format = "%Y-%m-%dT%H:%M:%S%z"
-            else:
-                # restic 12: '2023-02-01T14:14:19.30760523Z' ->
-                # '2023-02-01T14:14:19'
-                time_format = "%Y-%m-%dT%H:%M:%S"
             timestamp = time.mktime(
-                datetime.datetime.strptime(
-                    time_parsed, time_format).timetuple()
-            )
+                datetime.datetime.fromisoformat(snap["time"]).timetuple())
             snap["timestamp"] = timestamp
             if (
                 snap["hash"] not in latest_snapshots
@@ -219,6 +257,15 @@ class ResticCollector(Collector):
                     "timestamp": snap["timestamp"],
                     "size_total": stats["total_size"],
                     "files_total": stats["total_file_count"],
+                    "files_new": self.get_summary(snap, "files_new"),
+                    "files_changed": self.get_summary(snap, "files_changed"),
+                    "files_unmodified": self.get_summary(snap, "files_unmodified"),
+                    "total_files_processed": self.get_summary(
+                        snap, "total_files_processed"
+                    ),
+                    "total_bytes_processed": self.get_summary(
+                        snap, "total_bytes_processed"
+                    ),
                     "snapshots_total": snap_total_counter[snap["hash"]],
                     "duration_seconds": self.calc_duration(snap)
                 }
@@ -376,6 +423,11 @@ class ResticCollector(Collector):
                 lock_counter += 1
 
         return lock_counter
+
+    def get_summary(self, snap, metric):
+        if "summary" in snap:
+            return snap["summary"].get(metric, 0)
+        return 0
 
     @staticmethod
     def calc_snapshot_hash(snapshot: dict) -> str:

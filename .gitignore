@@ -9,3 +9,4 @@ repo.key
 repo.txt
 build.log
 .dockerbuild.env
+.python-version
