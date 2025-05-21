@@ -116,6 +116,11 @@ class ResticCollector(Collector):
             "Number of bytes processed in the last backup",
             labels=common_label_names
         )
+        backup_bytes_added = GaugeMetricFamily(
+            "restic_backup_bytes_added",
+            "Number of bytes added in the last backup",
+            labels=common_label_names
+        )
         backup_duration_seconds = GaugeMetricFamily(
             "restic_backup_duration_seconds",
             "Amount of time each backup takes",
@@ -168,6 +173,9 @@ class ResticCollector(Collector):
             backup_bytes_processed.add_metric(
                 common_label_values, client["total_bytes_processed"]
             )
+            backup_bytes_added.add_metric(
+                common_label_values, client["total_bytes_added"]
+            )
 
             # Scrape duration
             backup_duration_seconds.add_metric(
@@ -189,6 +197,7 @@ class ResticCollector(Collector):
         yield backup_files_unmodified
         yield backup_files_processed
         yield backup_bytes_processed
+        yield backup_bytes_added
         yield scrape_duration_seconds
 
     def refresh(self, exit_on_error=False):
@@ -265,6 +274,9 @@ class ResticCollector(Collector):
                     ),
                     "total_bytes_processed": self.get_summary(
                         snap, "total_bytes_processed"
+                    ),
+                    "total_bytes_added": self.get_summary(
+                        snap, "data_added"
                     ),
                     "snapshots_total": snap_total_counter[snap["hash"]],
                     "duration_seconds": self.calc_duration(snap)
