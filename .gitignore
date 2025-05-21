@@ -8,3 +8,4 @@ _trial_temp/
 repo.key
 repo.txt
 build.log
+.dockerbuild.env
