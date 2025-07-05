@@ -10,9 +10,18 @@ import sys
 import time
 import traceback
 
-from prometheus_client import start_http_server
-from prometheus_client.core import REGISTRY, CounterMetricFamily, GaugeMetricFamily
+from prometheus_client import (
+    REGISTRY,
+    start_http_server,
+    PROCESS_COLLECTOR,
+    PLATFORM_COLLECTOR,
+    GC_COLLECTOR,
+)
+from prometheus_client.core import CounterMetricFamily, GaugeMetricFamily
 
+REGISTRY.unregister(PROCESS_COLLECTOR)
+REGISTRY.unregister(PLATFORM_COLLECTOR)
+REGISTRY.unregister(GC_COLLECTOR)
 
 class ResticCollector(object):
     def __init__(
