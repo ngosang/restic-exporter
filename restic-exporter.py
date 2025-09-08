@@ -448,9 +448,9 @@ class ResticCollector(Collector):
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     def calc_duration(self, snapshot: dict) -> float:
-        backup_start = snapshot.get('summary', {}).get('backup_start')
-        backup_end = snapshot.get('summary', {}).get('backup_end')
-        if not backup_start or not backup_end:
+        backup_start = self.get_summary(snapshot, 'backup_start')
+        backup_end = self.get_summary(snapshot, 'backup_end')
+        if backup_start == 0 or backup_end == 0:
             return 0.0
         try:
             start_time = datetime.datetime.fromisoformat(backup_start)
@@ -471,9 +471,11 @@ class ResticCollector(Collector):
 
 
 if __name__ == "__main__":
+    log_level_str = os.environ.get("LOG_LEVEL", "INFO").upper()
+    log_level = logging._nameToLevel.get(log_level_str, logging.INFO)
     logging.basicConfig(
         format="%(asctime)s %(levelname)-8s %(message)s",
-        level=logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO")),
+        level=log_level,
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
@@ -482,25 +484,11 @@ if __name__ == "__main__":
 
     restic_repo_url = os.environ.get("RESTIC_REPOSITORY")
     if restic_repo_url is None:
-        restic_repo_url = os.environ.get("RESTIC_REPO_URL")
-        if restic_repo_url is not None:
-            logging.warning(
-                "The environment variable RESTIC_REPO_URL is deprecated, "
-                "please use RESTIC_REPOSITORY instead."
-            )
-    if restic_repo_url is None:
         logging.error(
             "The environment variable RESTIC_REPOSITORY is mandatory")
         sys.exit(1)
 
     restic_repo_password_file = os.environ.get("RESTIC_PASSWORD_FILE")
-    if restic_repo_password_file is None:
-        restic_repo_password_file = os.environ.get("RESTIC_REPO_PASSWORD_FILE")
-        if restic_repo_password_file is not None:
-            logging.warning(
-                "The environment variable RESTIC_REPO_PASSWORD_FILE is deprecated, "
-                "please use RESTIC_PASSWORD_FILE instead."
-            )
     if restic_repo_password_file is None:
         logging.error(
             "The environment variable RESTIC_PASSWORD_FILE is mandatory")

@@ -10,3 +10,5 @@ repo.txt
 build.log
 .dockerbuild.env
 .python-version
+
+.DS_Store
