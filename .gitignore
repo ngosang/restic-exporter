@@ -5,5 +5,6 @@
 _trial_temp/
 .vscode
 .run/
+.coverage
 .python-version
 uv.lock

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 import datetime
 import hashlib
 import json
@@ -9,22 +9,67 @@ import subprocess
 import sys
 import time
 import traceback
+from collections.abc import Iterable
+from dataclasses import dataclass
 
-from prometheus_client import start_http_server
+from prometheus_client import Metric, start_http_server
 from prometheus_client.core import REGISTRY, CounterMetricFamily, GaugeMetricFamily
+from prometheus_client.registry import Collector
 
 
-class ResticCollector(object):
+@dataclass
+class ResticSnapshot:
+    time: str
+    hostname: str
+    username: str
+    paths: list[str]
+    id: str
+    short_id: str
+    tags: list[str]
+    program_version: str
+    hash: str
+    timestamp: float
+
+
+@dataclass
+class ResticStats:
+    total_size: int
+    total_file_count: int
+
+
+@dataclass
+class ResticClient:
+    hostname: str
+    username: str
+    version: str
+    snapshot_hash: str
+    snapshot_tag: str
+    snapshot_tags: str
+    snapshot_paths: str
+    timestamp: float
+    size_total: int
+    files_total: int
+    snapshots_total: int
+
+
+@dataclass
+class ResticMetrics:
+    check_success: int
+    locks_total: int
+    clients: list[ResticClient]
+    snapshots_total: int
+    duration: float
+
+
+class ResticCollector(Collector):
     def __init__(
         self,
-        exit_on_error,
-        disable_check,
-        disable_stats,
-        disable_locks,
-        include_paths,
-        insecure_tls,
-    ):
-        self.exit_on_error = exit_on_error
+        disable_check: bool,
+        disable_stats: bool,
+        disable_locks: bool,
+        include_paths: bool,
+        insecure_tls: bool,
+    ) -> None:
         self.disable_check = disable_check
         self.disable_stats = disable_stats
         self.disable_locks = disable_locks
@@ -33,15 +78,14 @@ class ResticCollector(object):
         # todo: the stats cache increases over time -> remove old ids
         # todo: cold start -> the stats cache could be saved in a persistent volume
         # todo: cold start -> the restic cache (/root/.cache/restic) could be
-        # saved in a persistent volume
-        self.stats_cache = {}
-        self.metrics = {}
-        self.refresh(exit_on_error)
+        #   saved in a persistent volume
+        self.stats_cache: dict[str, ResticStats] = {}
+        self.metrics: ResticMetrics | None = None
 
-    def collect(self):
+    def collect(self) -> Iterable[Metric]:
         logging.debug("Incoming request")
 
-        common_label_names = [
+        common_label_names: list[str] = [
             "client_hostname",
             "client_username",
             "client_version",
@@ -92,27 +136,27 @@ class ResticCollector(object):
             labels=[],
         )
 
-        check_success.add_metric([], self.metrics["check_success"])
-        locks_total.add_metric([], self.metrics["locks_total"])
-        snapshots_total.add_metric([], self.metrics["snapshots_total"])
+        check_success.add_metric([], self.metrics.check_success)
+        locks_total.add_metric([], self.metrics.locks_total)
+        snapshots_total.add_metric([], self.metrics.snapshots_total)
 
-        for client in self.metrics["clients"]:
+        for client in self.metrics.clients:
             common_label_values = [
-                client["hostname"],
-                client["username"],
-                client["version"],
-                client["snapshot_hash"],
-                client["snapshot_tag"],
-                client["snapshot_tags"],
-                client["snapshot_paths"],
+                client.hostname,
+                client.username,
+                client.version,
+                client.snapshot_hash,
+                client.snapshot_tag,
+                client.snapshot_tags,
+                client.snapshot_paths,
             ]
 
-            backup_timestamp.add_metric(common_label_values, client["timestamp"])
-            backup_files_total.add_metric(common_label_values, client["files_total"])
-            backup_size_total.add_metric(common_label_values, client["size_total"])
-            backup_snapshots_total.add_metric(common_label_values, client["snapshots_total"])
+            backup_timestamp.add_metric(common_label_values, client.timestamp)
+            backup_files_total.add_metric(common_label_values, client.files_total)
+            backup_size_total.add_metric(common_label_values, client.size_total)
+            backup_snapshots_total.add_metric(common_label_values, client.snapshots_total)
 
-        scrape_duration_seconds.add_metric([], self.metrics["duration"])
+        scrape_duration_seconds.add_metric([], self.metrics.duration)
 
         yield check_success
         yield locks_total
@@ -123,7 +167,7 @@ class ResticCollector(object):
         yield backup_snapshots_total
         yield scrape_duration_seconds
 
-    def refresh(self, exit_on_error=False):
+    def refresh(self, exit_on_error: bool = False) -> None:
         try:
             self.metrics = self.get_metrics()
         except Exception:
@@ -132,66 +176,55 @@ class ResticCollector(object):
                 traceback.format_exc(0).replace("\n", " "),
             )
 
-            # Shutdown exporter for any error
+            # Shutdown exporter on any error
             if exit_on_error:
                 sys.exit(1)
 
-    def get_metrics(self):
+    def get_metrics(self) -> ResticMetrics:
         duration = time.time()
 
         # calc total number of snapshots per hash
         all_snapshots = self.get_snapshots()
-        snap_total_counter = {}
+        snap_total_counter: dict[str, int] = {}
         for snap in all_snapshots:
-            if snap["hash"] not in snap_total_counter:
-                snap_total_counter[snap["hash"]] = 1
+            if snap.hash not in snap_total_counter:
+                snap_total_counter[snap.hash] = 1
             else:
-                snap_total_counter[snap["hash"]] += 1
+                snap_total_counter[snap.hash] += 1
 
         # get the latest snapshot per hash
-        latest_snapshots_dup = self.get_snapshots(True)
-        latest_snapshots = {}
+        latest_snapshots_dup = self.get_snapshots(only_latest=True)
+        latest_snapshots: dict[str, ResticSnapshot] = {}
         for snap in latest_snapshots_dup:
-            time_parsed = re.sub(r"\.[^+-]+", "", snap["time"])
-            if len(time_parsed) > 19:
-                # restic 14: '2023-01-12T06:59:33.1576588+01:00' ->
-                # '2023-01-12T06:59:33+01:00'
-                time_format = "%Y-%m-%dT%H:%M:%S%z"
-            else:
-                # restic 12: '2023-02-01T14:14:19.30760523Z' ->
-                # '2023-02-01T14:14:19'
-                time_format = "%Y-%m-%dT%H:%M:%S"
-            timestamp = time.mktime(datetime.datetime.strptime(time_parsed, time_format).timetuple())
-            snap["timestamp"] = timestamp
-            if snap["hash"] not in latest_snapshots or snap["timestamp"] > latest_snapshots[snap["hash"]]["timestamp"]:
-                latest_snapshots[snap["hash"]] = snap
+            if snap.hash not in latest_snapshots or snap.timestamp > latest_snapshots[snap.hash].timestamp:
+                latest_snapshots[snap.hash] = snap
 
-        clients = []
+        clients: list[ResticClient] = []
         for snap in list(latest_snapshots.values()):
             # collect stats for each snap only if enabled
             if self.disable_stats:
                 # return zero as "no-stats" value
-                stats = {
-                    "total_size": -1,
-                    "total_file_count": -1,
-                }
+                stats = ResticStats(
+                    total_size=-1,
+                    total_file_count=-1,
+                )
             else:
-                stats = self.get_stats(snap["id"])
+                stats = self.get_stats(snap.id)
 
             clients.append(
-                {
-                    "hostname": snap["hostname"],
-                    "username": snap["username"],
-                    "version": (snap["program_version"] if "program_version" in snap else ""),
-                    "snapshot_hash": snap["hash"],
-                    "snapshot_tag": snap["tags"][0] if "tags" in snap else "",
-                    "snapshot_tags": ",".join(snap["tags"]) if "tags" in snap else "",
-                    "snapshot_paths": (",".join(snap["paths"]) if self.include_paths else ""),
-                    "timestamp": snap["timestamp"],
-                    "size_total": stats["total_size"],
-                    "files_total": stats["total_file_count"],
-                    "snapshots_total": snap_total_counter[snap["hash"]],
-                }
+                ResticClient(
+                    hostname=snap.hostname,
+                    username=snap.username,
+                    version=snap.program_version,
+                    snapshot_hash=snap.hash,
+                    snapshot_tag=snap.tags[0] if snap.tags else "",
+                    snapshot_tags=",".join(snap.tags),
+                    snapshot_paths=(",".join(snap.paths) if self.include_paths else ""),
+                    timestamp=snap.timestamp,
+                    size_total=stats.total_size,
+                    files_total=stats.total_file_count,
+                    snapshots_total=snap_total_counter[snap.hash],
+                )
             )
 
         # todo: fix the commented code when the bug is fixed in restic
@@ -210,20 +243,16 @@ class ResticCollector(object):
         else:
             locks_total = self.get_locks()
 
-        metrics = {
-            "check_success": check_success,
-            "locks_total": locks_total,
-            "clients": clients,
-            "snapshots_total": len(all_snapshots),
-            "duration": time.time() - duration,
-            # 'size_total': stats['total_size'],
-            # 'files_total': stats['total_file_count'],
-        }
+        return ResticMetrics(
+            check_success=check_success,
+            locks_total=locks_total,
+            clients=clients,
+            snapshots_total=len(all_snapshots),
+            duration=time.time() - duration,
+        )
 
-        return metrics
-
-    def get_snapshots(self, only_latest=False):
-        cmd = [
+    def get_snapshots(self, only_latest: bool = False) -> list[ResticSnapshot]:
+        cmd: list[str] = [
             "restic",
             "--no-lock",
             "snapshots",
@@ -239,28 +268,36 @@ class ResticCollector(object):
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception("Error executing restic snapshot command: " + self.parse_stderr(result))
-        snapshots = json.loads(result.stdout.decode("utf-8"))
-        for snap in snapshots:
-            if "username" not in snap:
-                snap["username"] = ""
-            snap["hash"] = self.calc_snapshot_hash(snap)
+        snapshots_data: list[dict] = json.loads(result.stdout.decode("utf-8"))
+
+        snapshots: list[ResticSnapshot] = []
+        for snap_data in snapshots_data:
+            snapshot_hash = self.calc_snapshot_hash(snap_data)
+            snap_timestamp = self.calc_snapshot_timestamp(snap_data)
+            snapshot = ResticSnapshot(
+                time=snap_data["time"],
+                hostname=snap_data["hostname"],
+                username=snap_data.get("username", ""),
+                paths=snap_data.get("paths", []),
+                id=snap_data.get("id", ""),
+                short_id=snap_data.get("short_id", ""),
+                tags=snap_data.get("tags", []),
+                program_version=snap_data.get("program_version", ""),
+                hash=snapshot_hash,
+                timestamp=snap_timestamp,
+            )
+            snapshots.append(snapshot)
+
         return snapshots
 
-    def get_stats(self, snapshot_id=None):
+    def get_stats(self, snapshot_id: str) -> ResticStats:
         # This command is expensive in CPU/Memory (1-5 seconds),
         # and much more when snapshot_id=None (3 minutes) -> we avoid this call for now
         # https://github.com/restic/restic/issues/2126
-        if snapshot_id is not None and snapshot_id in self.stats_cache:
+        if snapshot_id in self.stats_cache:
             return self.stats_cache[snapshot_id]
 
-        cmd = [
-            "restic",
-            "--no-lock",
-            "stats",
-            "--json",
-        ]
-        if snapshot_id is not None:
-            cmd.extend([snapshot_id])
+        cmd = ["restic", "--no-lock", "stats", "--json", snapshot_id]
 
         if self.insecure_tls:
             cmd.extend(["--insecure-tls"])
@@ -268,14 +305,17 @@ class ResticCollector(object):
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception("Error executing restic stats command: " + self.parse_stderr(result))
-        stats = json.loads(result.stdout.decode("utf-8"))
+        stats_dict = json.loads(result.stdout.decode("utf-8"))
 
-        if snapshot_id is not None:
-            self.stats_cache[snapshot_id] = stats
+        stats = ResticStats(
+            total_size=stats_dict["total_size"],
+            total_file_count=stats_dict["total_file_count"],
+        )
+        self.stats_cache[snapshot_id] = stats
 
         return stats
 
-    def get_check(self):
+    def get_check(self) -> int:
         # This command takes 20 seconds or more, but it's required
         cmd = [
             "restic",
@@ -290,11 +330,11 @@ class ResticCollector(object):
         if result.returncode == 0:
             return 1  # ok
         else:
-            logging.warning("Error checking the repository health. " + self.parse_stderr(result))
+            logging.warning("Error checking the repository health. %s", self.parse_stderr(result))
             return 0  # error
 
-    def get_locks(self):
-        cmd = [
+    def get_locks(self) -> int:
+        cmd: list[str] = [
             "restic",
             "--no-lock",
             "list",
@@ -307,8 +347,8 @@ class ResticCollector(object):
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception("Error executing restic list locks command: " + self.parse_stderr(result))
-        text_result = result.stdout.decode("utf-8")
-        lock_counter = 0
+        text_result: str = result.stdout.decode("utf-8")
+        lock_counter: int = 0
         for line in text_result.split("\n"):
             if re.match("^[a-z0-9]+$", line):
                 lock_counter += 1
@@ -317,11 +357,24 @@ class ResticCollector(object):
 
     @staticmethod
     def calc_snapshot_hash(snapshot: dict) -> str:
-        text = snapshot["hostname"] + snapshot["username"] + ",".join(snapshot["paths"])
+        text = snapshot["hostname"] + snapshot.get("username", "") + ",".join(snapshot["paths"])
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     @staticmethod
-    def parse_stderr(result):
+    def calc_snapshot_timestamp(snapshot: dict) -> float:
+        time_parsed = re.sub(r"\.[^+-]+", "", snapshot["time"])
+        if len(time_parsed) > 19:
+            # restic 14: '2023-01-12T06:59:33.1576588+01:00' ->
+            # '2023-01-12T06:59:33+01:00'
+            time_format = "%Y-%m-%dT%H:%M:%S%z"
+        else:
+            # restic 12: '2023-02-01T14:14:19.30760523Z' ->
+            # '2023-02-01T14:14:19'
+            time_format = "%Y-%m-%dT%H:%M:%S"
+        return time.mktime(datetime.datetime.strptime(time_parsed, time_format).timetuple())
+
+    @staticmethod
+    def parse_stderr(result: subprocess.CompletedProcess) -> str:
         return result.stderr.decode("utf-8").replace("\n", " ") + " Exit code: " + str(result.returncode)
 
 
@@ -362,19 +415,19 @@ if __name__ == "__main__":
 
     try:
         collector = ResticCollector(
-            exporter_exit_on_error,
-            exporter_disable_check,
-            exporter_disable_stats,
-            exporter_disable_locks,
-            exporter_include_paths,
-            exporter_insecure_tls,
+            disable_check=exporter_disable_check,
+            disable_stats=exporter_disable_stats,
+            disable_locks=exporter_disable_locks,
+            include_paths=exporter_include_paths,
+            insecure_tls=exporter_insecure_tls,
         )
+        collector.refresh(exit_on_error=exporter_exit_on_error)
         REGISTRY.register(collector)
         start_http_server(exporter_port, exporter_address)
-        logging.info("Serving at http://{0}:{1}".format(exporter_address, exporter_port))
+        logging.info("Serving at http://%s:%d", exporter_address, exporter_port)
 
         while True:
-            logging.info("Refreshing stats every {0} seconds".format(exporter_refresh_interval))
+            logging.info("Refreshing stats every %d seconds", exporter_refresh_interval)
             time.sleep(exporter_refresh_interval)
             collector.refresh()
 
