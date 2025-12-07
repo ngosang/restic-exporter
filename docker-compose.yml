@@ -1,5 +1,4 @@
-version: "2.1"
-
+---
 services:
   restic-exporter:
     image: ngosang/restic-exporter
@@ -7,8 +6,8 @@ services:
     environment:
       - TZ=Europe/Madrid
       - RESTIC_REPOSITORY=/data
-      - RESTIC_PASSWORD=password_here
-      # - RESTIC_PASSWORD_FILE=/file_with_password_here
+      - RESTIC_PASSWORD=<password_here>
+      # - RESTIC_PASSWORD_FILE=<file_path_with_password_here>
       - REFRESH_INTERVAL=1800 # 30 min
     volumes:
       - /host_path/restic/data:/data

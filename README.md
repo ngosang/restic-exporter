@@ -20,7 +20,7 @@ Requirements:
 pip install -r /requirements.txt
 
 export RESTIC_REPOSITORY=/data
-export RESTIC_PASSWORD_FILE=/restic_password_file
+export RESTIC_PASSWORD=restic_password
 python restic-exporter.py
 ```
 
@@ -30,7 +30,7 @@ Docker images are available in [GHCR](https://github.com/ngosang/restic-exporter
 
 ```bash
 docker pull ghcr.io/ngosang/restic-exporter
-or
+# or
 docker pull ngosang/restic-exporter
 ```
 
@@ -52,7 +52,6 @@ Compatible with docker-compose v2 schemas:
 
 ```yaml
 ---
-version: '2.1'
 services:
   restic-exporter:
     image: ngosang/restic-exporter
@@ -61,7 +60,7 @@ services:
       - TZ=Europe/Madrid
       - RESTIC_REPOSITORY=/data
       - RESTIC_PASSWORD=<password_here>
-      # - RESTIC_PASSWORD_FILE=</file_with_password_here>
+      # - RESTIC_PASSWORD_FILE=<file_path_with_password_here>
       - REFRESH_INTERVAL=1800 # 30 min
     volumes:
       - /host_path/restic/data:/data
@@ -98,48 +97,44 @@ All configuration is done with environment variables:
   * Backblaze B2: `b2:bucketname:path/to/repo`
   * Rclone (see notes below): `rclone:gd-backup:/restic`
 
-- `RESTIC_PASSWORD`: Restic repository password in plain text. This is only
-required if `RESTIC_PASSWORD_FILE` is not defined.
-- `RESTIC_PASSWORD_FILE`: File with the Restic repository password in plain
-text. This is only required if `RESTIC_PASSWORD` is not defined. Remember
-to mount the Docker volume with the file.
-- `AWS_ACCESS_KEY_ID`: (Optional) Required for Amazon S3, Minio and Wasabi
-backends.
-- `AWS_SECRET_ACCESS_KEY`: (Optional) Required for Amazon S3, Minio and Wasabi
-backends.
+- Repository password configuration. Choose one of the following methods:
+  - `RESTIC_PASSWORD`: Restic repository password in plain text.
+  - `RESTIC_PASSWORD_FILE`: File with the Restic repository password in plain text. Remember to mount the Docker volume
+with the file.
+  - `RESTIC_PASSWORD_COMMAND`: Program to be called when the password is needed.
+
+- `AWS_ACCESS_KEY_ID`: (Optional) Required for Amazon S3, Minio and Wasabi backends.
+- `AWS_SECRET_ACCESS_KEY`: (Optional) Required for Amazon S3, Minio and Wasabi backends.
 - `B2_ACCOUNT_ID`: (Optional) Required for Backblaze B2 backend.
 - `B2_ACCOUNT_KEY`: (Optional) Required for Backblaze B2 backend.
-- `REFRESH_INTERVAL`: (Optional) Refresh interval for the metrics in seconds.
-Computing the metrics is an expensive task, keep this value as high as possible.
-Default is `60` seconds.
-  - **WARNING**: With default settings, downloading from remote repositories
-may be costly if using this exporter with a remote Cloud-based restic repository
-(e.g. GCP GCS, Amazon S3). This may cause a surprisingly high spike in your
-infrastructure costs (e.g. for small restic repositories that don't download
-frequently, this may increase your costs by multiple orders of magnitude).
-Consider setting `REFRESH_INTERVAL` to considerably higher values (e.g. `86400`
-for once per day) to lower this impact.
-- `LISTEN_PORT`: (Optional) The address the exporter should listen on. The
-default is `8001`.
-- `LISTEN_ADDRESS`: (Optional) The address the exporter should listen on. The
-default is to listen on all addresses.
+- `REFRESH_INTERVAL`: (Optional) Refresh interval for the metrics in seconds. Computing the metrics is an expensive
+task, keep this value as high as possible. Default is `60` seconds.
+  - **WARNING**: With default settings, downloading from remote repositories may be costly if using this exporter with
+a remote Cloud-based restic repository (e.g. GCP GCS, Amazon S3). This may cause a surprisingly high spike in your
+infrastructure costs (e.g. for small restic repositories that don't download frequently, this may increase your costs
+by multiple orders of magnitude). Consider setting `REFRESH_INTERVAL` to considerably higher values (e.g. `86400` for
+once per day) to lower this impact.
+
+- `LISTEN_PORT`: (Optional) The address the exporter should listen on. The default is `8001`.
+- `LISTEN_ADDRESS`: (Optional) The address the exporter should listen on. The default is to listen on all addresses.
 - `LOG_LEVEL`: (Optional) Log level of the traces. The default is `INFO`.
-- `EXIT_ON_ERROR`: (Optional) Shutdown exporter on any `restic` error. Default
-is `Flase` (only log error, such as network error with Cloud backends).
-- `NO_CHECK`: (Optional) Do not perform `restic check` operation for performance
-reasons. Default is `False` (perform `restic check`).
-- `NO_STATS`: (Optional) Do not collect per backup statistics for performance
-reasons. Default is `False` (collect per backup statistics).
+- `EXIT_ON_ERROR`: (Optional) Shutdown exporter on any `restic` error. Default is `Flase` (only log error, such as
+network error with Cloud backends).
+- `NO_CHECK`: (Optional) Do not perform `restic check` operation for performance reasons. Default is `False` (perform
+`restic check`).
+- `NO_STATS`: (Optional) Do not collect per backup statistics for performance reasons. Default is `False` (collect per
+backup statistics).
 - `NO_LOCKS`: (Optional) Do not collect the number of locks. Default is `False` (collect the number of locks).
-- `INCLUDE_PATHS`: (Optional) Include snapshot paths for each backup. The paths are separated by commas. Default is `False` (not collect the paths).
+- `INCLUDE_PATHS`: (Optional) Include snapshot paths for each backup. The paths are separated by commas. Default is
+`False` (not collect the paths).
 - `INSECURE_TLS`: (Optional) skip TLS verification for self-signed certificates. Default is `False` (not skip).
 
 ### Configuration for Rclone
 
-Rclone is not included in the Docker image. You have to mount the Rclone executable and the Rclone configuration from the host machine. Here is an example with docker-compose:
+Rclone is not included in the Docker image. You have to mount the Rclone executable and the Rclone configuration from
+the host machine. Here is an example with docker-compose:
 
 ```yaml
-version: '2.1'
 services:
   restic-exporter:
     image: ngosang/restic-exporter

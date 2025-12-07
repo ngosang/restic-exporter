@@ -5,7 +5,9 @@
 * Update Restic 0.18.1 (built with Go 1.24)
 * Update Python 3.14 and dependencies
 * Update base Docker image to Alpine 3.23
+* Repository password configuration with RESTIC_PASSWORD, RESTIC_PASSWORD_FILE or RESTIC_PASSWORD_COMMAND env vars
 * Add warning in the readme about remote Restic repo costs
+* Update docker-compose examples
 
 ## 1.7.0 (2025/02/15)
 

@@ -363,7 +363,7 @@ if __name__ == "__main__":
         logging.error("The environment variable RESTIC_REPOSITORY is mandatory")
         sys.exit(1)
 
-    if os.environ.get("RESTIC_PASSWORD") is None and os.environ.get("RESTIC_PASSWORD_FILE") is None and os.environ.get("$RESTIC_PASSWORD_COMMAND") is None:
+    if os.environ.get("RESTIC_PASSWORD") is None and os.environ.get("RESTIC_PASSWORD_FILE") is None and os.environ.get("RESTIC_PASSWORD_COMMAND") is None:
         logging.error("One of the environment variables RESTIC_PASSWORD, RESTIC_PASSWORD_FILE or RESTIC_PASSWORD_COMMAND is mandatory")
         sys.exit(1)
 

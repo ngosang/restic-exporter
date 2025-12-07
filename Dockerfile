@@ -18,7 +18,7 @@ FROM python:3.14-alpine3.23
 RUN apk add --no-cache --update openssh tzdata libc6-compat
 
 COPY --from=builder /tmp/restic /usr/bin
-COPY entrypoint.sh requirements.txt /
+COPY requirements.txt /requirements.txt
 
 RUN pip install -r /requirements.txt \
     # remove temporary files
@@ -28,7 +28,7 @@ COPY ./restic-exporter.py /restic-exporter.py
 
 EXPOSE 8001
 
-CMD [ "/entrypoint.sh" ]
+CMD ["/usr/local/bin/python", "-u", "/restic-exporter.py"]
 
 # Help
 #
