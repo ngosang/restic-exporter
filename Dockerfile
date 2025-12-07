@@ -1,7 +1,7 @@
-FROM golang:1.23-alpine3.21 AS builder
+FROM golang:1.24-alpine3.23 AS builder
 
-ENV RESTIC_VERSION 0.18.1
-ENV CGO_ENABLED 0
+ENV RESTIC_VERSION=0.18.1
+ENV CGO_ENABLED=0
 
 RUN cd /tmp \
     # download restic source code
@@ -12,7 +12,7 @@ RUN cd /tmp \
     # flag -ldflags "-s -w" produces a smaller executable
     && go build -ldflags "-s -w" -v -o /tmp/restic ./cmd/restic
 
-FROM python:3.12-alpine3.21
+FROM python:3.14-alpine3.23
 
 # libc6-compat => https://github.com/ngosang/restic-exporter/issues/36
 RUN apk add --no-cache --update openssh tzdata libc6-compat
