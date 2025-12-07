@@ -23,19 +23,18 @@ RUN pip install prometheus-client==0.23.1 \
     # remove temporary files
     && rm -rf /root/.cache
 
-COPY exporter/exporter.py /exporter.py
-
+COPY exporter/exporter.py pyproject.toml /app/
 EXPOSE 8001
 
-CMD ["/usr/local/bin/python", "-u", "/exporter.py"]
+CMD ["/usr/local/bin/python", "-u", "/app/exporter.py"]
 
 # Help
 #
 # Local build
-# docker build -t restic-exporter:custom .
+# docker build -t restic-exporter:custom --progress=plain .
 #
 # Multi-arch build
 # docker buildx create --use
-# docker buildx build -t restic-exporter:custom --platform linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64/v8,linux/ppc64le,linux/s390x .
+# docker buildx build -t restic-exporter:custom --platform linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64/v8,linux/ppc64le,linux/s390x --progress=plain .
 #
 # add --push to publish in DockerHub

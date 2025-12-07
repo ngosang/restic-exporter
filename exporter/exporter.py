@@ -378,6 +378,22 @@ class ResticCollector(Collector):
         return result.stderr.decode("utf-8").replace("\n", " ") + " Exit code: " + str(result.returncode)
 
 
+def get_version() -> str:
+    current_path = os.path.dirname(__file__)
+    pyproject_path = os.path.join(current_path, "pyproject.toml")
+    if not os.path.exists(pyproject_path):
+        pyproject_path = os.path.join(current_path, "..", "pyproject.toml")
+    try:
+        with open(pyproject_path, "r") as f:
+            content = f.read()
+        match = re.search(r'version\s*=\s*"([^"]+)"', content)
+        if match:
+            return match.group(1)
+    except Exception:
+        pass
+    return "unknown"
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         format="%(asctime)s %(levelname)-8s %(message)s",
@@ -385,7 +401,8 @@ if __name__ == "__main__":
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-    logging.info("Starting Restic Prometheus Exporter")
+    version = get_version()
+    logging.info("Starting Restic Prometheus Exporter v%s", version)
     logging.info("It could take a while if the repository is remote")
 
     if os.environ.get("RESTIC_REPOSITORY") is None:
