@@ -5,3 +5,5 @@
 _trial_temp/
 .vscode
 .run/
+.python-version
+uv.lock

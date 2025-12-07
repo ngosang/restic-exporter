@@ -13,16 +13,25 @@ Prometheus exporter for the [Restic](https://github.com/restic/restic) backup sy
 ### From source code
 
 Requirements:
- * Python 3
- * [prometheus-client](https://github.com/prometheus/client_python)
+* Python >= 3.12
+* [Uv package manager](https://github.com/astral-sh/uv)
 
+Install dependencies:
+* `uv sync`
+
+Run the exporter from the CLI:
 ```bash
-pip install -r /requirements.txt
-
 export RESTIC_REPOSITORY=/data
 export RESTIC_PASSWORD=restic_password
-python restic-exporter.py
+uv run exporter/exporter.py
 ```
+
+Format the code:
+* `uv run ruff format ./`
+* `uv run ruff check ./ --fix`
+
+Run the tests:
+* `uv run pytest ./`
 
 ### Docker
 

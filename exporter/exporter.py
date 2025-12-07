@@ -110,9 +110,7 @@ class ResticCollector(object):
             backup_timestamp.add_metric(common_label_values, client["timestamp"])
             backup_files_total.add_metric(common_label_values, client["files_total"])
             backup_size_total.add_metric(common_label_values, client["size_total"])
-            backup_snapshots_total.add_metric(
-                common_label_values, client["snapshots_total"]
-            )
+            backup_snapshots_total.add_metric(common_label_values, client["snapshots_total"])
 
         scrape_duration_seconds.add_metric([], self.metrics["duration"])
 
@@ -163,14 +161,9 @@ class ResticCollector(object):
                 # restic 12: '2023-02-01T14:14:19.30760523Z' ->
                 # '2023-02-01T14:14:19'
                 time_format = "%Y-%m-%dT%H:%M:%S"
-            timestamp = time.mktime(
-                datetime.datetime.strptime(time_parsed, time_format).timetuple()
-            )
+            timestamp = time.mktime(datetime.datetime.strptime(time_parsed, time_format).timetuple())
             snap["timestamp"] = timestamp
-            if (
-                snap["hash"] not in latest_snapshots
-                or snap["timestamp"] > latest_snapshots[snap["hash"]]["timestamp"]
-            ):
+            if snap["hash"] not in latest_snapshots or snap["timestamp"] > latest_snapshots[snap["hash"]]["timestamp"]:
                 latest_snapshots[snap["hash"]] = snap
 
         clients = []
@@ -189,15 +182,11 @@ class ResticCollector(object):
                 {
                     "hostname": snap["hostname"],
                     "username": snap["username"],
-                    "version": (
-                        snap["program_version"] if "program_version" in snap else ""
-                    ),
+                    "version": (snap["program_version"] if "program_version" in snap else ""),
                     "snapshot_hash": snap["hash"],
                     "snapshot_tag": snap["tags"][0] if "tags" in snap else "",
                     "snapshot_tags": ",".join(snap["tags"]) if "tags" in snap else "",
-                    "snapshot_paths": (
-                        ",".join(snap["paths"]) if self.include_paths else ""
-                    ),
+                    "snapshot_paths": (",".join(snap["paths"]) if self.include_paths else ""),
                     "timestamp": snap["timestamp"],
                     "size_total": stats["total_size"],
                     "files_total": stats["total_file_count"],
@@ -249,9 +238,7 @@ class ResticCollector(object):
 
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
-            raise Exception(
-                "Error executing restic snapshot command: " + self.parse_stderr(result)
-            )
+            raise Exception("Error executing restic snapshot command: " + self.parse_stderr(result))
         snapshots = json.loads(result.stdout.decode("utf-8"))
         for snap in snapshots:
             if "username" not in snap:
@@ -280,9 +267,7 @@ class ResticCollector(object):
 
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
-            raise Exception(
-                "Error executing restic stats command: " + self.parse_stderr(result)
-            )
+            raise Exception("Error executing restic stats command: " + self.parse_stderr(result))
         stats = json.loads(result.stdout.decode("utf-8"))
 
         if snapshot_id is not None:
@@ -305,9 +290,7 @@ class ResticCollector(object):
         if result.returncode == 0:
             return 1  # ok
         else:
-            logging.warning(
-                "Error checking the repository health. " + self.parse_stderr(result)
-            )
+            logging.warning("Error checking the repository health. " + self.parse_stderr(result))
             return 0  # error
 
     def get_locks(self):
@@ -323,10 +306,7 @@ class ResticCollector(object):
 
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
-            raise Exception(
-                "Error executing restic list locks command: "
-                + self.parse_stderr(result)
-            )
+            raise Exception("Error executing restic list locks command: " + self.parse_stderr(result))
         text_result = result.stdout.decode("utf-8")
         lock_counter = 0
         for line in text_result.split("\n"):
@@ -342,11 +322,7 @@ class ResticCollector(object):
 
     @staticmethod
     def parse_stderr(result):
-        return (
-            result.stderr.decode("utf-8").replace("\n", " ")
-            + " Exit code: "
-            + str(result.returncode)
-        )
+        return result.stderr.decode("utf-8").replace("\n", " ") + " Exit code: " + str(result.returncode)
 
 
 if __name__ == "__main__":
@@ -363,8 +339,15 @@ if __name__ == "__main__":
         logging.error("The environment variable RESTIC_REPOSITORY is mandatory")
         sys.exit(1)
 
-    if os.environ.get("RESTIC_PASSWORD") is None and os.environ.get("RESTIC_PASSWORD_FILE") is None and os.environ.get("RESTIC_PASSWORD_COMMAND") is None:
-        logging.error("One of the environment variables RESTIC_PASSWORD, RESTIC_PASSWORD_FILE or RESTIC_PASSWORD_COMMAND is mandatory")
+    if (
+        os.environ.get("RESTIC_PASSWORD") is None
+        and os.environ.get("RESTIC_PASSWORD_FILE") is None
+        and os.environ.get("RESTIC_PASSWORD_COMMAND") is None
+    ):
+        logging.error(
+            "One of the environment variables RESTIC_PASSWORD, RESTIC_PASSWORD_FILE or "
+            "RESTIC_PASSWORD_COMMAND is mandatory"
+        )
         sys.exit(1)
 
     exporter_address = os.environ.get("LISTEN_ADDRESS", "0.0.0.0")
@@ -388,14 +371,10 @@ if __name__ == "__main__":
         )
         REGISTRY.register(collector)
         start_http_server(exporter_port, exporter_address)
-        logging.info(
-            "Serving at http://{0}:{1}".format(exporter_address, exporter_port)
-        )
+        logging.info("Serving at http://{0}:{1}".format(exporter_address, exporter_port))
 
         while True:
-            logging.info(
-                "Refreshing stats every {0} seconds".format(exporter_refresh_interval)
-            )
+            logging.info("Refreshing stats every {0} seconds".format(exporter_refresh_interval))
             time.sleep(exporter_refresh_interval)
             collector.refresh()
 

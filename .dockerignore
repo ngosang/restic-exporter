@@ -1,0 +1,8 @@
+.idea
+.venv
+.ruff_cache
+.pytest_cache
+.github
+**/__pycache__
+htmlcov
+grafana

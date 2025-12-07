@@ -18,17 +18,16 @@ FROM python:3.14-alpine3.23
 RUN apk add --no-cache --update openssh tzdata libc6-compat
 
 COPY --from=builder /tmp/restic /usr/bin
-COPY requirements.txt /requirements.txt
 
-RUN pip install -r /requirements.txt \
+RUN pip install prometheus-client==0.23.1 \
     # remove temporary files
     && rm -rf /root/.cache
 
-COPY ./restic-exporter.py /restic-exporter.py
+COPY exporter/exporter.py /exporter.py
 
 EXPOSE 8001
 
-CMD ["/usr/local/bin/python", "-u", "/restic-exporter.py"]
+CMD ["/usr/local/bin/python", "-u", "/exporter.py"]
 
 # Help
 #
