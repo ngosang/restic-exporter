@@ -184,16 +184,10 @@ class ResticCollector(Collector):
         duration = time.time()
 
         # calc total number of snapshots per hash
-        all_snapshots = self.get_snapshots()
-        snap_total_counter: dict[str, int] = {}
-        for snap in all_snapshots:
-            if snap.hash not in snap_total_counter:
-                snap_total_counter[snap.hash] = 1
-            else:
-                snap_total_counter[snap.hash] += 1
+        snap_total_counter = self.get_snapshots_counters()
 
         # get the latest snapshot per hash
-        latest_snapshots_dup = self.get_snapshots(only_latest=True)
+        latest_snapshots_dup = self.get_latest_snapshots()
         latest_snapshots: dict[str, ResticSnapshot] = {}
         for snap in latest_snapshots_dup:
             if snap.hash not in latest_snapshots or snap.timestamp > latest_snapshots[snap.hash].timestamp:
@@ -247,11 +241,44 @@ class ResticCollector(Collector):
             check_success=check_success,
             locks_total=locks_total,
             clients=clients,
-            snapshots_total=len(all_snapshots),
+            snapshots_total=sum(snap_total_counter.values()),
             duration=time.time() - duration,
         )
 
-    def get_snapshots(self, only_latest: bool = False) -> list[ResticSnapshot]:
+    def get_snapshots_counters(self) -> dict[str, int]:
+        snapshots_data = self.get_snapshots_data(only_latest=False)
+        counter: dict[str, int] = {}
+        for snap_data in snapshots_data:
+            snapshot_hash = self.calc_snapshot_hash(snap_data)
+            if snapshot_hash not in counter:
+                counter[snapshot_hash] = 1
+            else:
+                counter[snapshot_hash] += 1
+        return counter
+
+    def get_latest_snapshots(self) -> list[ResticSnapshot]:
+        snapshots_data = self.get_snapshots_data(only_latest=True)
+        snapshots: list[ResticSnapshot] = []
+        for snap_data in snapshots_data:
+            snapshot_hash = self.calc_snapshot_hash(snap_data)
+            snap_timestamp = self.calc_snapshot_timestamp(snap_data)
+            # todo: add info from summary
+            snapshot = ResticSnapshot(
+                time=snap_data["time"],
+                hostname=snap_data["hostname"],
+                username=snap_data.get("username", ""),
+                paths=snap_data.get("paths", []),
+                id=snap_data["id"],
+                short_id=snap_data["short_id"],
+                tags=snap_data.get("tags", []),
+                program_version=snap_data.get("program_version", ""),
+                hash=snapshot_hash,
+                timestamp=snap_timestamp,
+            )
+            snapshots.append(snapshot)
+        return snapshots
+
+    def get_snapshots_data(self, only_latest: bool) -> list[dict]:
         cmd: list[str] = [
             "restic",
             "--no-lock",
@@ -268,27 +295,7 @@ class ResticCollector(Collector):
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception("Error executing restic snapshot command: " + self.parse_stderr(result))
-        snapshots_data: list[dict] = json.loads(result.stdout.decode("utf-8"))
-
-        snapshots: list[ResticSnapshot] = []
-        for snap_data in snapshots_data:
-            snapshot_hash = self.calc_snapshot_hash(snap_data)
-            snap_timestamp = self.calc_snapshot_timestamp(snap_data)
-            snapshot = ResticSnapshot(
-                time=snap_data["time"],
-                hostname=snap_data["hostname"],
-                username=snap_data.get("username", ""),
-                paths=snap_data.get("paths", []),
-                id=snap_data.get("id", ""),
-                short_id=snap_data.get("short_id", ""),
-                tags=snap_data.get("tags", []),
-                program_version=snap_data.get("program_version", ""),
-                hash=snapshot_hash,
-                timestamp=snap_timestamp,
-            )
-            snapshots.append(snapshot)
-
-        return snapshots
+        return json.loads(result.stdout.decode("utf-8"))
 
     def get_stats(self, snapshot_id: str) -> ResticStats:
         # This command is expensive in CPU/Memory (1-5 seconds),
@@ -362,16 +369,7 @@ class ResticCollector(Collector):
 
     @staticmethod
     def calc_snapshot_timestamp(snapshot: dict) -> float:
-        time_parsed = re.sub(r"\.[^+-]+", "", snapshot["time"])
-        if len(time_parsed) > 19:
-            # restic 14: '2023-01-12T06:59:33.1576588+01:00' ->
-            # '2023-01-12T06:59:33+01:00'
-            time_format = "%Y-%m-%dT%H:%M:%S%z"
-        else:
-            # restic 12: '2023-02-01T14:14:19.30760523Z' ->
-            # '2023-02-01T14:14:19'
-            time_format = "%Y-%m-%dT%H:%M:%S"
-        return time.mktime(datetime.datetime.strptime(time_parsed, time_format).timetuple())
+        return time.mktime(datetime.datetime.fromisoformat(snapshot["time"]).timetuple())
 
     @staticmethod
     def parse_stderr(result: subprocess.CompletedProcess) -> str:
@@ -394,7 +392,7 @@ def get_version() -> str:
     return "unknown"
 
 
-if __name__ == "__main__":
+def main(refresh_loop: bool = True) -> None:
     logging.basicConfig(
         format="%(asctime)s %(levelname)-8s %(message)s",
         level=logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO")),
@@ -443,7 +441,7 @@ if __name__ == "__main__":
         start_http_server(exporter_port, exporter_address)
         logging.info("Serving at http://%s:%d", exporter_address, exporter_port)
 
-        while True:
+        while refresh_loop:
             logging.info("Refreshing stats every %d seconds", exporter_refresh_interval)
             time.sleep(exporter_refresh_interval)
             collector.refresh()
@@ -451,3 +449,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logging.info("\nInterrupted")
         exit(0)
+
+
+if __name__ == "__main__":
+    main()

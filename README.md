@@ -28,7 +28,7 @@ uv run exporter/exporter.py
 
 Format the code:
 * `uv run ruff format ./`
-* `uv run ruff check ./ --fix`
+* `uv run ruff check --fix ./`
 
 Run the tests:
 * `uv run pytest ./`

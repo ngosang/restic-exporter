@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 import json
+import logging
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from exporter.exporter import ResticCollector
+from exporter.exporter import ResticCollector, get_version, main
 
 
 @pytest.fixture
@@ -73,6 +75,7 @@ def mock_subprocess_run():
 
 @pytest.fixture
 def mock_restic_cli(mock_subprocess_run, mock_snapshots_data, mock_stats_data):
+    # noinspection PyUnusedLocal
     def mock_run_side_effect(cmd, **kwargs):
         if "snapshots" in cmd:
             return MagicMock(returncode=0, stdout=json.dumps(mock_snapshots_data).encode("utf-8"), stderr=b"")
@@ -212,11 +215,21 @@ class TestResticCollector:
         client_2 = metrics.clients[1]
         assert client_2.snapshots_total == 1
 
-    def test_get_snapshots(self, restic_collector, mock_subprocess_run, mock_snapshots_data):
+    def test_get_snapshots_counters(self, restic_collector, mock_subprocess_run, mock_snapshots_data):
         mock_subprocess_run.return_value = MagicMock(
             returncode=0, stdout=json.dumps(mock_snapshots_data).encode("utf-8"), stderr=b""
         )
-        snapshots = restic_collector.get_snapshots()
+        snapshots_counters = restic_collector.get_snapshots_counters()
+        assert snapshots_counters == {
+            "71f88da2c5cab9b10885214531b4f3dc1a5e0016ec67699595da597f0e652a4c": 1,
+            "80873a9c92e8448f9fe8d78e6f6fbe856818af6ab2a86e522d0e4c5612b27eb8": 2,
+        }
+
+    def test_get_latest_snapshots(self, restic_collector, mock_subprocess_run, mock_snapshots_data):
+        mock_subprocess_run.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(mock_snapshots_data).encode("utf-8"), stderr=b""
+        )
+        snapshots = restic_collector.get_latest_snapshots()
         assert len(snapshots) == 3
         first_snapshot = snapshots[0]
         assert first_snapshot.time == "2023-01-12T06:59:33.1576588+01:00"
@@ -229,6 +242,40 @@ class TestResticCollector:
         assert first_snapshot.program_version == "restic 0.15.0"
         assert first_snapshot.hash == "80873a9c92e8448f9fe8d78e6f6fbe856818af6ab2a86e522d0e4c5612b27eb8"
         assert first_snapshot.timestamp == 1673503173.0
+
+    def test_get_latest_snapshots_missing_values(self, restic_collector, mock_subprocess_run):
+        snapshots_data = [
+            {
+                "time": "2024-01-12T06:59:33.1576588+01:00",
+                "hostname": "server2",
+                "paths": ["/home", "/var"],
+                "id": "abc123b",
+                "short_id": "abc123",
+            }
+        ]
+        mock_subprocess_run.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(snapshots_data).encode("utf-8"), stderr=b""
+        )
+        snapshots = restic_collector.get_latest_snapshots()
+        assert len(snapshots) == 1
+        first_snapshot = snapshots[0]
+        assert first_snapshot.time == "2024-01-12T06:59:33.1576588+01:00"
+        assert first_snapshot.hostname == "server2"
+        assert first_snapshot.username == ""
+        assert first_snapshot.paths == ["/home", "/var"]
+        assert first_snapshot.id == "abc123b"
+        assert first_snapshot.short_id == "abc123"
+        assert first_snapshot.tags == []
+        assert first_snapshot.program_version == ""
+        assert first_snapshot.hash == "ba37d8a42f3028c561e65b08b9cbf8088d1375cd5fbece0850252be16e7f0043"
+        assert first_snapshot.timestamp == 1705039173.0
+
+    def test_get_snapshots_data(self, restic_collector, mock_subprocess_run, mock_snapshots_data):
+        mock_subprocess_run.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(mock_snapshots_data).encode("utf-8"), stderr=b""
+        )
+        snapshots_data = restic_collector.get_snapshots_data(only_latest=False)
+        assert snapshots_data == mock_snapshots_data
         assert mock_subprocess_run.call_args[0][0] == [
             "restic",
             "--no-lock",
@@ -237,7 +284,7 @@ class TestResticCollector:
         ]
 
         # Flag only_latest=True
-        restic_collector.get_snapshots(only_latest=True)
+        restic_collector.get_snapshots_data(only_latest=True)
         assert mock_subprocess_run.call_args[0][0] == [
             "restic",
             "--no-lock",
@@ -250,14 +297,14 @@ class TestResticCollector:
         # Error
         mock_subprocess_run.return_value = MagicMock(returncode=1, stdout=b"", stderr=b"Error: repository not found")
         with pytest.raises(Exception, match="Error executing restic snapshot command"):
-            restic_collector.get_snapshots()
+            restic_collector.get_snapshots_data(only_latest=False)
 
         # Insecure TLS
         restic_collector.insecure_tls = True
         mock_subprocess_run.return_value = MagicMock(
             returncode=0, stdout=json.dumps(mock_snapshots_data).encode("utf-8"), stderr=b""
         )
-        restic_collector.get_snapshots()
+        restic_collector.get_snapshots_data(only_latest=False)
         assert mock_subprocess_run.call_args[0][0] == [
             "restic",
             "--no-lock",
@@ -265,31 +312,6 @@ class TestResticCollector:
             "--json",
             "--insecure-tls",
         ]
-
-    def test_get_snapshots_missing_values(self, restic_collector, mock_subprocess_run):
-        snapshots_data = [
-            {
-                "time": "2024-01-12T06:59:33.1576588+01:00",
-                "hostname": "server2",
-                "paths": ["/home", "/var"],
-            }
-        ]
-        mock_subprocess_run.return_value = MagicMock(
-            returncode=0, stdout=json.dumps(snapshots_data).encode("utf-8"), stderr=b""
-        )
-        snapshots = restic_collector.get_snapshots()
-        assert len(snapshots) == 1
-        first_snapshot = snapshots[0]
-        assert first_snapshot.time == "2024-01-12T06:59:33.1576588+01:00"
-        assert first_snapshot.hostname == "server2"
-        assert first_snapshot.username == ""
-        assert first_snapshot.paths == ["/home", "/var"]
-        assert first_snapshot.id == ""
-        assert first_snapshot.short_id == ""
-        assert first_snapshot.tags == []
-        assert first_snapshot.program_version == ""
-        assert first_snapshot.hash == "ba37d8a42f3028c561e65b08b9cbf8088d1375cd5fbece0850252be16e7f0043"
-        assert first_snapshot.timestamp == 1705039173.0
 
     def test_get_stats(self, restic_collector, mock_subprocess_run, mock_stats_data):
         assert len(restic_collector.stats_cache) == 0
@@ -423,9 +445,11 @@ class TestResticCollector:
         )
 
     def test_calc_snapshot_timestamp(self):
+        # Restic >= 14: '2023-01-12T06:59:33.1576588+01:00'
         snapshot = {"time": "2023-01-12T06:59:33.1576588+01:00"}
         assert ResticCollector.calc_snapshot_timestamp(snapshot) == 1673503173.0
 
+        # Restic 12: '2023-02-01T14:14:19.30760523Z'
         snapshot["time"] = "2023-02-01T14:14:19.30760523Z"
         assert ResticCollector.calc_snapshot_timestamp(snapshot) == 1675257259.0
 
@@ -436,3 +460,89 @@ class TestResticCollector:
 
         result = ResticCollector.parse_stderr(mock_result)
         assert result == "Error: repository not found  Exit code: 1"
+
+
+class TestMain:
+    @patch("exporter.exporter.start_http_server")
+    @patch("exporter.exporter.REGISTRY.register")
+    @patch.dict(
+        os.environ,
+        {
+            "RESTIC_REPOSITORY": "/path/to/repo",
+            "RESTIC_PASSWORD": "password",
+        },
+    )
+    def test_main(self, mock_register, mock_start_server, mock_restic_cli, caplog):
+        caplog.set_level(logging.INFO)
+        main(refresh_loop=False)
+
+        # Collector registered with default params
+        mock_register.assert_called_once()
+        collector = mock_register.call_args[0][0]
+        assert collector.disable_check is False
+        assert collector.disable_stats is False
+        assert collector.disable_locks is False
+        assert collector.include_paths is False
+        assert collector.insecure_tls is False
+        # The collector has metrics after first refresh
+        assert collector.metrics is not None
+        assert len(collector.stats_cache) > 1
+
+        # Server starts
+        mock_start_server.assert_called_once_with(8001, "0.0.0.0")
+
+        # Check logs
+        version = get_version()
+        assert caplog.messages == [
+            f"Starting Restic Prometheus Exporter v{version}",
+            "It could take a while if the repository is remote",
+            "Serving at http://0.0.0.0:8001",
+        ]
+
+    @patch("exporter.exporter.start_http_server")
+    @patch("exporter.exporter.REGISTRY.register")
+    @patch.dict(
+        os.environ,
+        {
+            "RESTIC_REPOSITORY": "/path/to/repo",
+            "RESTIC_PASSWORD": "password",
+            "LISTEN_ADDRESS": "127.0.0.1",
+            "LISTEN_PORT": "8002",
+            "NO_CHECK": "True",
+            "NO_STATS": "True",
+            "NO_LOCKS": "True",
+            "INCLUDE_PATHS": "True",
+            "INSECURE_TLS": "True",
+        },
+    )
+    def test_main_env_vars(self, mock_register, mock_start_server, mock_restic_cli):
+        main(refresh_loop=False)
+
+        # Collector registered with default params
+        mock_register.assert_called_once()
+        collector = mock_register.call_args[0][0]
+        assert collector.disable_check is True
+        assert collector.disable_stats is True
+        assert collector.disable_locks is True
+        assert collector.include_paths is True
+        assert collector.insecure_tls is True
+        # The collector has metrics after first refresh
+        assert collector.metrics is not None
+        assert len(collector.stats_cache) == 0
+
+        # Server starts
+        mock_start_server.assert_called_once_with(8002, "127.0.0.1")
+
+    @patch("exporter.exporter.start_http_server")
+    @patch("exporter.exporter.REGISTRY.register")
+    @patch("sys.exit")
+    def test_main_error(self, mock_sys_exit, _mock_register, _mock_start_server, mock_restic_cli, caplog):
+        caplog.set_level(logging.ERROR)
+
+        main(refresh_loop=False)
+        assert mock_sys_exit.call_count == 2
+        assert "The environment variable RESTIC_REPOSITORY is mandatory" in caplog.messages
+        assert (
+            "One of the environment variables RESTIC_PASSWORD, RESTIC_PASSWORD_FILE or "
+            "RESTIC_PASSWORD_COMMAND is mandatory"
+        ) in caplog.messages

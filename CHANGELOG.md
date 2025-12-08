@@ -2,15 +2,15 @@
 
 ## 2.0.0 (upcoming)
 
-* Repository password configuration with RESTIC_PASSWORD, RESTIC_PASSWORD_FILE or RESTIC_PASSWORD_COMMAND env vars
-* Update Restic 0.18.1 (built with Go 1.24)
-* Update Python 3.14 and dependencies
-* Update base Docker image to Alpine 3.23
+* Support RESTIC_PASSWORD_COMMAND env var for repository password configuration
 * Include Restic Exporter version in the log traces
 * Use UV as package manager for local development
 * Cleanup the code and add unit tests
-* Add warning in the readme about remote Restic repo costs
+* Add warning in the readme about remote Restic repository costs
 * Update docker-compose examples
+* Update Restic 0.18.1 (built with Go 1.24)
+* Update Python 3.14 and dependencies
+* Update base Docker image to Alpine 3.23
 
 ## 1.7.0 (2025/02/15)
 
