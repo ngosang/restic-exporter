@@ -133,6 +133,8 @@ network error with Cloud backends).
 `restic check`).
 - `NO_STATS`: (Optional) Do not collect per backup statistics for performance reasons. Default is `False` (collect per
 backup statistics).
+  - **NOTE**: Since Restic 0.17 getting the statistics is much faster and it is always enabled. This configuration only
+applies for backups performed with an old version of the Restic client.
 - `NO_LOCKS`: (Optional) Do not collect the number of locks. Default is `False` (collect the number of locks).
 - `INCLUDE_PATHS`: (Optional) Include snapshot paths for each backup. The paths are separated by commas. Default is
 `False` (not collect the paths).

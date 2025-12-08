@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from exporter.exporter import ResticCollector, get_version, main
+from exporter.exporter import ResticCollector, ResticSnapshot, ResticStats, get_version, main
 
 
 @pytest.fixture
@@ -24,6 +24,22 @@ def restic_collector():
 @pytest.fixture
 def mock_snapshots_data():
     """Sample snapshots data as returned by restic snapshots --json"""
+    summary = {
+        "backup_start": "2025-11-20T06:03:53.077541972+01:00",
+        "backup_end": "2025-11-20T06:04:26.243226525+01:00",
+        "files_new": 2280,
+        "files_changed": 3167,
+        "files_unmodified": 239163,
+        "dirs_new": 1,
+        "dirs_changed": 255,
+        "dirs_unmodified": 53499,
+        "data_blobs": 5576,
+        "tree_blobs": 253,
+        "data_added": 529759957,
+        "data_added_packed": 493326131,
+        "total_files_processed": 244610,
+        "total_bytes_processed": 67558618674,
+    }
     return [
         {
             "time": "2023-01-12T06:59:33.1576588+01:00",
@@ -34,6 +50,7 @@ def mock_snapshots_data():
             "short_id": "abc123",
             "tags": ["daily", "automated"],
             "program_version": "restic 0.15.0",
+            "summary": summary,
         },
         {
             "time": "2023-01-11T06:59:33.1576588+01:00",
@@ -44,6 +61,7 @@ def mock_snapshots_data():
             "short_id": "def456",
             "tags": ["daily"],
             "program_version": "restic 0.15.0",
+            "summary": summary,
         },
         {
             "time": "2023-02-11T06:59:33.1576588+01:00",
@@ -53,6 +71,7 @@ def mock_snapshots_data():
             "id": "ghi789b",
             "short_id": "ghi789",
             "program_version": "restic 0.14.0",
+            "summary": summary,
         },
     ]
 
@@ -117,17 +136,25 @@ class TestResticCollector:
         restic_collector.refresh()
         metrics = list(restic_collector.collect())
 
-        assert len(metrics) == 8  # All metric families
+        assert len(metrics) == 16  # All metric families
         metric_names = [m.name for m in metrics]
 
         assert "restic_check_success" in metric_names
         assert "restic_locks" in metric_names
         assert "restic_snapshots" in metric_names
+        assert "restic_scrape_duration_seconds" in metric_names
         assert "restic_backup_timestamp" in metric_names
+        assert "restic_backup_snapshots" in metric_names
         assert "restic_backup_files" in metric_names
         assert "restic_backup_size" in metric_names
-        assert "restic_backup_snapshots" in metric_names
-        assert "restic_scrape_duration_seconds" in metric_names
+        assert "restic_backup_files_new" in metric_names
+        assert "restic_backup_files_changed" in metric_names
+        assert "restic_backup_files_unmodified" in metric_names
+        assert "restic_backup_dirs_new" in metric_names
+        assert "restic_backup_dirs_changed" in metric_names
+        assert "restic_backup_dirs_unmodified" in metric_names
+        assert "restic_backup_data_added_bytes" in metric_names
+        assert "restic_backup_duration_seconds" in metric_names
 
     def test_get_metrics_disabled_features(self, restic_collector, mock_restic_cli):
         restic_collector.disable_check = True
@@ -141,11 +168,10 @@ class TestResticCollector:
         assert metrics.snapshots_total == 3
         assert len(metrics.clients) == 2  # Two unique hashes
         assert metrics.duration >= 0
-        # Verify stats and paths are disabled
+        # Stats from snapshot summary, paths are disabled
         for client in metrics.clients:
-            assert client.size_total == -1
-            assert client.files_total == -1
             assert client.snapshot_paths == ""
+            assert client.stats.total_size == 67558618674
         # 2 snapshots called
         assert mock_restic_cli.call_count == 2
 
@@ -160,7 +186,37 @@ class TestResticCollector:
         # 2 snapshots + 1 check called
         assert mock_restic_cli.call_count == 3
 
-    def test_get_metrics_with_stats(self, restic_collector, mock_restic_cli):
+    def test_get_metrics_with_legacy_stats(self, restic_collector, mock_subprocess_run, mock_stats_data):
+        """Test stats collection when snapshot summary is not available (Restic < 0.17)"""
+        snapshots_data = [
+            {
+                "time": "2024-01-12T06:59:33.1576588+01:00",
+                "hostname": "server2",
+                "paths": ["/home", "/var"],
+                "id": "abc123b",
+                "short_id": "abc123",
+            },
+            {
+                "time": "2023-02-11T06:59:33.1576588+01:00",
+                "hostname": "server2",
+                "username": "backup",
+                "paths": ["/var"],
+                "id": "ghi789b",
+                "short_id": "ghi789",
+            },
+        ]
+
+        # noinspection PyUnusedLocal
+        def mock_run_side_effect(cmd, **kwargs):
+            if "snapshots" in cmd:
+                return MagicMock(returncode=0, stdout=json.dumps(snapshots_data).encode("utf-8"), stderr=b"")
+            elif "stats" in cmd:
+                return MagicMock(returncode=0, stdout=json.dumps(mock_stats_data).encode("utf-8"), stderr=b"")
+            else:
+                raise ValueError("Unexpected command")
+
+        mock_subprocess_run.side_effect = mock_run_side_effect
+
         restic_collector.disable_check = True
         restic_collector.disable_stats = False
         restic_collector.disable_locks = True
@@ -169,10 +225,23 @@ class TestResticCollector:
 
         # Verify stats are collected
         for client in metrics.clients:
-            assert client.size_total == 1073741824
-            assert client.files_total == 1000
+            assert client.stats.total_size == 1073741824
+            assert client.stats.total_file_count == 1000
+            assert client.stats.files_new == -1
         # 2 snapshots + 2 stats called
-        assert mock_restic_cli.call_count == 4
+        assert mock_subprocess_run.call_count == 4
+
+        # Stats disabled
+        restic_collector.disable_stats = True
+        metrics = restic_collector.get_metrics()
+
+        # Verify stats are collected
+        for client in metrics.clients:
+            assert client.stats.total_size == -1
+            assert client.stats.total_file_count == -1
+            assert client.stats.files_new == -1
+        # previous calls + 2 snapshots (no new stats calls)
+        assert mock_subprocess_run.call_count == 6
 
     def test_get_metrics_with_locks(self, restic_collector, mock_restic_cli):
         restic_collector.disable_check = True
@@ -231,17 +300,30 @@ class TestResticCollector:
         )
         snapshots = restic_collector.get_latest_snapshots()
         assert len(snapshots) == 3
-        first_snapshot = snapshots[0]
-        assert first_snapshot.time == "2023-01-12T06:59:33.1576588+01:00"
-        assert first_snapshot.hostname == "server1"
-        assert first_snapshot.username == "root"
-        assert first_snapshot.paths == ["/home", "/etc"]
-        assert first_snapshot.id == "abc123b"
-        assert first_snapshot.short_id == "abc123"
-        assert first_snapshot.tags == ["daily", "automated"]
-        assert first_snapshot.program_version == "restic 0.15.0"
-        assert first_snapshot.hash == "80873a9c92e8448f9fe8d78e6f6fbe856818af6ab2a86e522d0e4c5612b27eb8"
-        assert first_snapshot.timestamp == 1673503173.0
+        assert snapshots[0] == ResticSnapshot(
+            time="2023-01-12T06:59:33.1576588+01:00",
+            hostname="server1",
+            username="root",
+            paths=["/home", "/etc"],
+            id="abc123b",
+            short_id="abc123",
+            tags=["daily", "automated"],
+            program_version="restic 0.15.0",
+            hash="80873a9c92e8448f9fe8d78e6f6fbe856818af6ab2a86e522d0e4c5612b27eb8",
+            timestamp=1673503173.0,
+            stats=ResticStats(
+                total_size=67558618674,
+                total_file_count=244610,
+                files_new=2280,
+                files_changed=3167,
+                files_unmodified=239163,
+                dirs_new=1,
+                dirs_changed=255,
+                dirs_unmodified=53499,
+                data_added=529759957,
+                duration=33.165685,
+            ),
+        )
 
     def test_get_latest_snapshots_missing_values(self, restic_collector, mock_subprocess_run):
         snapshots_data = [
@@ -258,17 +340,19 @@ class TestResticCollector:
         )
         snapshots = restic_collector.get_latest_snapshots()
         assert len(snapshots) == 1
-        first_snapshot = snapshots[0]
-        assert first_snapshot.time == "2024-01-12T06:59:33.1576588+01:00"
-        assert first_snapshot.hostname == "server2"
-        assert first_snapshot.username == ""
-        assert first_snapshot.paths == ["/home", "/var"]
-        assert first_snapshot.id == "abc123b"
-        assert first_snapshot.short_id == "abc123"
-        assert first_snapshot.tags == []
-        assert first_snapshot.program_version == ""
-        assert first_snapshot.hash == "ba37d8a42f3028c561e65b08b9cbf8088d1375cd5fbece0850252be16e7f0043"
-        assert first_snapshot.timestamp == 1705039173.0
+        assert snapshots[0] == ResticSnapshot(
+            time="2024-01-12T06:59:33.1576588+01:00",
+            hostname="server2",
+            username="",
+            paths=["/home", "/var"],
+            id="abc123b",
+            short_id="abc123",
+            tags=[],
+            program_version="",
+            hash="ba37d8a42f3028c561e65b08b9cbf8088d1375cd5fbece0850252be16e7f0043",
+            timestamp=1705039173.0,
+            stats=None,
+        )
 
     def test_get_snapshots_data(self, restic_collector, mock_subprocess_run, mock_snapshots_data):
         mock_subprocess_run.return_value = MagicMock(
@@ -321,6 +405,18 @@ class TestResticCollector:
         stats = restic_collector.get_stats("abc123")
         assert stats.total_size == 1073741824
         assert stats.total_file_count == 1000
+        assert stats == ResticStats(
+            total_size=1073741824,
+            total_file_count=1000,
+            files_new=-1,
+            files_changed=-1,
+            files_unmodified=-1,
+            dirs_new=-1,
+            dirs_changed=-1,
+            dirs_unmodified=-1,
+            data_added=-1,
+            duration=-1,
+        )
         assert mock_subprocess_run.call_args[0][0] == [
             "restic",
             "--no-lock",
@@ -362,6 +458,23 @@ class TestResticCollector:
         ]
         assert mock_subprocess_run.call_count == 3
         assert len(restic_collector.stats_cache) == 2
+
+        # Disabled stats
+        restic_collector.disable_stats = True
+        stats = restic_collector.get_stats("xyz444")
+        assert stats == ResticStats(
+            total_size=-1,
+            total_file_count=-1,
+            files_new=-1,
+            files_changed=-1,
+            files_unmodified=-1,
+            dirs_new=-1,
+            dirs_changed=-1,
+            dirs_unmodified=-1,
+            data_added=-1,
+            duration=-1,
+        )
+        assert mock_subprocess_run.call_count == 3  # No new call
 
     def test_get_check(self, restic_collector, mock_subprocess_run, caplog):
         mock_subprocess_run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
@@ -445,13 +558,64 @@ class TestResticCollector:
         )
 
     def test_calc_snapshot_timestamp(self):
-        # Restic >= 14: '2023-01-12T06:59:33.1576588+01:00'
+        # Restic >= 0.14: '2023-01-12T06:59:33.1576588+01:00'
         snapshot = {"time": "2023-01-12T06:59:33.1576588+01:00"}
         assert ResticCollector.calc_snapshot_timestamp(snapshot) == 1673503173.0
 
-        # Restic 12: '2023-02-01T14:14:19.30760523Z'
+        # Restic 0.12: '2023-02-01T14:14:19.30760523Z'
         snapshot["time"] = "2023-02-01T14:14:19.30760523Z"
         assert ResticCollector.calc_snapshot_timestamp(snapshot) == 1675257259.0
+
+    def test_calc_snapshot_stats(self):
+        snapshot = {
+            "summary": {
+                "backup_start": "2025-12-08T07:12:00.913147689+01:00",
+                "backup_end": "2025-12-08T07:12:04.006656036+01:00",
+                "files_new": 0,
+                "files_changed": 14,
+                "files_unmodified": 25889,
+                "dirs_new": 0,
+                "dirs_changed": 17,
+                "dirs_unmodified": 5475,
+                "data_blobs": 2,
+                "tree_blobs": 18,
+                "data_added": 473450,
+                "data_added_packed": 35460,
+                "total_files_processed": 25903,
+                "total_bytes_processed": 12382567073,
+            }
+        }
+        stats = ResticCollector.calc_snapshot_stats(snapshot)
+        assert stats == ResticStats(
+            total_size=12382567073,
+            total_file_count=25903,
+            files_new=0,
+            files_changed=14,
+            files_unmodified=25889,
+            dirs_new=0,
+            dirs_changed=17,
+            dirs_unmodified=5475,
+            data_added=473450,
+            duration=3.093509,
+        )
+
+        # Missing fields
+        stats = ResticCollector.calc_snapshot_stats({"summary": {}})
+        assert stats == ResticStats(
+            total_size=-1,
+            total_file_count=-1,
+            files_new=-1,
+            files_changed=-1,
+            files_unmodified=-1,
+            dirs_new=-1,
+            dirs_changed=-1,
+            dirs_unmodified=-1,
+            data_added=-1,
+            duration=-1,
+        )
+
+        # Missing summary (Restic < 0.17)
+        assert ResticCollector.calc_snapshot_stats({}) is None
 
     def test_parse_stderr(self):
         mock_result = MagicMock()
@@ -486,7 +650,6 @@ class TestMain:
         assert collector.insecure_tls is False
         # The collector has metrics after first refresh
         assert collector.metrics is not None
-        assert len(collector.stats_cache) > 1
 
         # Server starts
         mock_start_server.assert_called_once_with(8001, "0.0.0.0")
@@ -528,7 +691,6 @@ class TestMain:
         assert collector.insecure_tls is True
         # The collector has metrics after first refresh
         assert collector.metrics is not None
-        assert len(collector.stats_cache) == 0
 
         # Server starts
         mock_start_server.assert_called_once_with(8002, "127.0.0.1")

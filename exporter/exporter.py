@@ -18,6 +18,22 @@ from prometheus_client.registry import Collector
 
 
 @dataclass
+class ResticStats:
+    # from restic stats and from snapshot summary
+    total_size: int
+    total_file_count: int
+    # from snapshot summary
+    files_new: int
+    files_changed: int
+    files_unmodified: int
+    dirs_new: int
+    dirs_changed: int
+    dirs_unmodified: int
+    data_added: int
+    duration: float
+
+
+@dataclass
 class ResticSnapshot:
     time: str
     hostname: str
@@ -29,12 +45,7 @@ class ResticSnapshot:
     program_version: str
     hash: str
     timestamp: float
-
-
-@dataclass
-class ResticStats:
-    total_size: int
-    total_file_count: int
+    stats: ResticStats | None
 
 
 @dataclass
@@ -47,9 +58,8 @@ class ResticClient:
     snapshot_tags: str
     snapshot_paths: str
     timestamp: float
-    size_total: int
-    files_total: int
     snapshots_total: int
+    stats: ResticStats
 
 
 @dataclass
@@ -75,8 +85,6 @@ class ResticCollector(Collector):
         self.disable_locks = disable_locks
         self.include_paths = include_paths
         self.insecure_tls = insecure_tls
-        # todo: the stats cache increases over time -> remove old ids
-        # todo: cold start -> the stats cache could be saved in a persistent volume
         # todo: cold start -> the restic cache (/root/.cache/restic) could be
         #   saved in a persistent volume
         self.stats_cache: dict[str, ResticStats] = {}
@@ -110,9 +118,19 @@ class ResticCollector(Collector):
             "Total number of snapshots in the repository",
             labels=[],
         )
+        scrape_duration_seconds = GaugeMetricFamily(
+            "restic_scrape_duration_seconds",
+            "Amount of time each scrape takes",
+            labels=[],
+        )
         backup_timestamp = GaugeMetricFamily(
             "restic_backup_timestamp",
             "Timestamp of the last backup",
+            labels=common_label_names,
+        )
+        backup_snapshots_total = CounterMetricFamily(
+            "restic_backup_snapshots_total",
+            "Total number of snapshots",
             labels=common_label_names,
         )
         backup_files_total = CounterMetricFamily(
@@ -125,20 +143,51 @@ class ResticCollector(Collector):
             "Total size of backup in bytes",
             labels=common_label_names,
         )
-        backup_snapshots_total = CounterMetricFamily(
-            "restic_backup_snapshots_total",
-            "Total number of snapshots",
+        backup_files_new = CounterMetricFamily(
+            "restic_backup_files_new",
+            "Number of new files in the backup",
             labels=common_label_names,
         )
-        scrape_duration_seconds = GaugeMetricFamily(
-            "restic_scrape_duration_seconds",
-            "Amount of time each scrape takes",
-            labels=[],
+        backup_files_changed = CounterMetricFamily(
+            "restic_backup_files_changed",
+            "Number of changed files in the backup",
+            labels=common_label_names,
+        )
+        backup_files_unmodified = CounterMetricFamily(
+            "restic_backup_files_unmodified",
+            "Number of unmodified files in the backup",
+            labels=common_label_names,
+        )
+        backup_dirs_new = CounterMetricFamily(
+            "restic_backup_dirs_new",
+            "Number of new directories in the backup",
+            labels=common_label_names,
+        )
+        backup_dirs_changed = CounterMetricFamily(
+            "restic_backup_dirs_changed",
+            "Number of changed directories in the backup",
+            labels=common_label_names,
+        )
+        backup_dirs_unmodified = CounterMetricFamily(
+            "restic_backup_dirs_unmodified",
+            "Number of unmodified directories in the backup",
+            labels=common_label_names,
+        )
+        backup_data_added_bytes = CounterMetricFamily(
+            "restic_backup_data_added_bytes",
+            "Number of bytes added in the backup",
+            labels=common_label_names,
+        )
+        backup_duration_seconds = CounterMetricFamily(
+            "restic_backup_duration_seconds",
+            "Amount of time Restic took to make the backup",
+            labels=common_label_names,
         )
 
         check_success.add_metric([], self.metrics.check_success)
         locks_total.add_metric([], self.metrics.locks_total)
         snapshots_total.add_metric([], self.metrics.snapshots_total)
+        scrape_duration_seconds.add_metric([], self.metrics.duration)
 
         for client in self.metrics.clients:
             common_label_values = [
@@ -152,20 +201,34 @@ class ResticCollector(Collector):
             ]
 
             backup_timestamp.add_metric(common_label_values, client.timestamp)
-            backup_files_total.add_metric(common_label_values, client.files_total)
-            backup_size_total.add_metric(common_label_values, client.size_total)
             backup_snapshots_total.add_metric(common_label_values, client.snapshots_total)
-
-        scrape_duration_seconds.add_metric([], self.metrics.duration)
+            backup_files_total.add_metric(common_label_values, client.stats.total_file_count)
+            backup_size_total.add_metric(common_label_values, client.stats.total_size)
+            backup_files_new.add_metric(common_label_values, client.stats.files_new)
+            backup_files_changed.add_metric(common_label_values, client.stats.files_changed)
+            backup_files_unmodified.add_metric(common_label_values, client.stats.files_unmodified)
+            backup_dirs_new.add_metric(common_label_values, client.stats.dirs_new)
+            backup_dirs_changed.add_metric(common_label_values, client.stats.dirs_changed)
+            backup_dirs_unmodified.add_metric(common_label_values, client.stats.dirs_unmodified)
+            backup_data_added_bytes.add_metric(common_label_values, client.stats.data_added)
+            backup_duration_seconds.add_metric(common_label_values, client.stats.duration)
 
         yield check_success
         yield locks_total
         yield snapshots_total
+        yield scrape_duration_seconds
         yield backup_timestamp
+        yield backup_snapshots_total
         yield backup_files_total
         yield backup_size_total
-        yield backup_snapshots_total
-        yield scrape_duration_seconds
+        yield backup_files_new
+        yield backup_files_changed
+        yield backup_files_unmodified
+        yield backup_dirs_new
+        yield backup_dirs_changed
+        yield backup_dirs_unmodified
+        yield backup_data_added_bytes
+        yield backup_duration_seconds
 
     def refresh(self, exit_on_error: bool = False) -> None:
         try:
@@ -195,16 +258,11 @@ class ResticCollector(Collector):
 
         clients: list[ResticClient] = []
         for snap in list(latest_snapshots.values()):
-            # collect stats for each snap only if enabled
-            if self.disable_stats:
-                # return zero as "no-stats" value
-                stats = ResticStats(
-                    total_size=-1,
-                    total_file_count=-1,
-                )
+            if snap.stats is not None:
+                stats = snap.stats
             else:
+                # this is the legacy way for Restic < 0.17
                 stats = self.get_stats(snap.id)
-
             clients.append(
                 ResticClient(
                     hostname=snap.hostname,
@@ -215,9 +273,8 @@ class ResticCollector(Collector):
                     snapshot_tags=",".join(snap.tags),
                     snapshot_paths=(",".join(snap.paths) if self.include_paths else ""),
                     timestamp=snap.timestamp,
-                    size_total=stats.total_size,
-                    files_total=stats.total_file_count,
                     snapshots_total=snap_total_counter[snap.hash],
+                    stats=stats,
                 )
             )
 
@@ -262,7 +319,7 @@ class ResticCollector(Collector):
         for snap_data in snapshots_data:
             snapshot_hash = self.calc_snapshot_hash(snap_data)
             snap_timestamp = self.calc_snapshot_timestamp(snap_data)
-            # todo: add info from summary
+            snap_stats = self.calc_snapshot_stats(snap_data)
             snapshot = ResticSnapshot(
                 time=snap_data["time"],
                 hostname=snap_data["hostname"],
@@ -274,6 +331,7 @@ class ResticCollector(Collector):
                 program_version=snap_data.get("program_version", ""),
                 hash=snapshot_hash,
                 timestamp=snap_timestamp,
+                stats=snap_stats,
             )
             snapshots.append(snapshot)
         return snapshots
@@ -298,6 +356,21 @@ class ResticCollector(Collector):
         return json.loads(result.stdout.decode("utf-8"))
 
     def get_stats(self, snapshot_id: str) -> ResticStats:
+        stats = ResticStats(
+            total_size=-1,
+            total_file_count=-1,
+            files_new=-1,
+            files_changed=-1,
+            files_unmodified=-1,
+            dirs_new=-1,
+            dirs_changed=-1,
+            dirs_unmodified=-1,
+            data_added=-1,
+            duration=-1,
+        )
+        if self.disable_stats:
+            return stats
+
         # This command is expensive in CPU/Memory (1-5 seconds),
         # and much more when snapshot_id=None (3 minutes) -> we avoid this call for now
         # https://github.com/restic/restic/issues/2126
@@ -314,10 +387,8 @@ class ResticCollector(Collector):
             raise Exception("Error executing restic stats command: " + self.parse_stderr(result))
         stats_dict = json.loads(result.stdout.decode("utf-8"))
 
-        stats = ResticStats(
-            total_size=stats_dict["total_size"],
-            total_file_count=stats_dict["total_file_count"],
-        )
+        stats.total_size = stats_dict["total_size"]
+        stats.total_file_count = stats_dict["total_file_count"]
         self.stats_cache[snapshot_id] = stats
 
         return stats
@@ -370,6 +441,30 @@ class ResticCollector(Collector):
     @staticmethod
     def calc_snapshot_timestamp(snapshot: dict) -> float:
         return time.mktime(datetime.datetime.fromisoformat(snapshot["time"]).timetuple())
+
+    @staticmethod
+    def calc_snapshot_stats(snapshot: dict) -> ResticStats | None:
+        if "summary" not in snapshot:
+            return None
+        summary = snapshot["summary"]
+        if "backup_start" in summary and "backup_end" in summary:
+            start_time = datetime.datetime.fromisoformat(summary["backup_start"])
+            end_time = datetime.datetime.fromisoformat(summary["backup_end"])
+            duration = (end_time - start_time).total_seconds()
+        else:
+            duration = -1
+        return ResticStats(
+            total_size=summary.get("total_bytes_processed", -1),
+            total_file_count=summary.get("total_files_processed", -1),
+            files_new=summary.get("files_new", -1),
+            files_changed=summary.get("files_changed", -1),
+            files_unmodified=summary.get("files_unmodified", -1),
+            dirs_new=summary.get("dirs_new", -1),
+            dirs_changed=summary.get("dirs_changed", -1),
+            dirs_unmodified=summary.get("dirs_unmodified", -1),
+            data_added=summary.get("data_added", -1),
+            duration=duration,
+        )
 
     @staticmethod
     def parse_stderr(result: subprocess.CompletedProcess) -> str:
