@@ -132,7 +132,9 @@ once per day) to lower this impact.
 network error with Cloud backends).
 - `NO_CHECK`: (Optional) Do not perform `restic check` operation for performance reasons. Default is `False` (perform
 `restic check`).
-- `NO_STATS`: (Optional) Do not collect per backup statistics for performance reasons. Default is `False` (collect per
+- `NO_GLOBAL_STATS`: (Optional) Do not perform `restic stats` operation for performance reasons. Default is `False` (perform
+`restic stats`).
+- `NO_LEGACY_STATS`: (Optional) Do not collect per backup statistics for performance reasons. Default is `False` (collect per
 backup statistics).
   - **NOTE**: Since Restic 0.17 getting the statistics is much faster and it is always enabled. This configuration only
 applies for backups performed with an old version of the Restic client.

@@ -13,8 +13,17 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from prometheus_client import Metric, start_http_server
-from prometheus_client.core import REGISTRY, CounterMetricFamily, GaugeMetricFamily
+from prometheus_client.core import REGISTRY, GaugeMetricFamily
 from prometheus_client.registry import Collector
+
+
+@dataclass
+class ResticGlobalStats:
+    total_size: int
+    total_uncompressed_size: int
+    compression_ratio: float
+    total_blob_count: int
+    total_snapshots_count: int
 
 
 @dataclass
@@ -67,27 +76,29 @@ class ResticMetrics:
     check_success: int
     locks_total: int
     clients: list[ResticClient]
-    snapshots_total: int
     duration: float
+    global_stats: ResticGlobalStats
 
 
 class ResticCollector(Collector):
     def __init__(
         self,
         disable_check: bool,
-        disable_stats: bool,
+        disable_global_stats: bool,
+        disable_legacy_stats: bool,
         disable_locks: bool,
         include_paths: bool,
         insecure_tls: bool,
     ) -> None:
         self.disable_check = disable_check
-        self.disable_stats = disable_stats
+        self.disable_global_stats = disable_global_stats
+        self.disable_legacy_stats = disable_legacy_stats
         self.disable_locks = disable_locks
         self.include_paths = include_paths
         self.insecure_tls = insecure_tls
         # todo: cold start -> the restic cache (/root/.cache/restic) could be
         #   saved in a persistent volume
-        self.stats_cache: dict[str, ResticStats] = {}
+        self.stats_snapshot_cache: dict[str, ResticStats] = {}
         self.metrics: ResticMetrics | None = None
 
     def collect(self) -> Iterable[Metric]:
@@ -103,19 +114,15 @@ class ResticCollector(Collector):
             "snapshot_paths",
         ]
 
+        # global metrics
         check_success = GaugeMetricFamily(
             "restic_check_success",
             "Result of restic check operation in the repository",
             labels=[],
         )
-        locks_total = CounterMetricFamily(
+        locks_total = GaugeMetricFamily(
             "restic_locks_total",
             "Total number of locks in the repository",
-            labels=[],
-        )
-        snapshots_total = CounterMetricFamily(
-            "restic_snapshots_total",
-            "Total number of snapshots in the repository",
             labels=[],
         )
         scrape_duration_seconds = GaugeMetricFamily(
@@ -123,62 +130,88 @@ class ResticCollector(Collector):
             "Amount of time each scrape takes",
             labels=[],
         )
+        size_total = GaugeMetricFamily(
+            "restic_size_total",
+            "Total size of the repository in bytes",
+            labels=[],
+        )
+        uncompressed_size_total = GaugeMetricFamily(
+            "restic_uncompressed_size_total",
+            "Total uncompressed size of the repository in bytes",
+            labels=[],
+        )
+        compression_ratio = GaugeMetricFamily(
+            "restic_compression_ratio",
+            "Compression ratio of the repository",
+            labels=[],
+        )
+        blob_count_total = GaugeMetricFamily(
+            "restic_blob_count_total",
+            "Total number of blobs in the repository",
+            labels=[],
+        )
+        snapshots_total = GaugeMetricFamily(
+            "restic_snapshots_total",
+            "Total number of snapshots in the repository",
+            labels=[],
+        )
+        # per backup metrics
         backup_timestamp = GaugeMetricFamily(
             "restic_backup_timestamp",
             "Timestamp of the last backup",
             labels=common_label_names,
         )
-        backup_snapshots_total = CounterMetricFamily(
+        backup_snapshots_total = GaugeMetricFamily(
             "restic_backup_snapshots_total",
             "Total number of snapshots",
             labels=common_label_names,
         )
-        backup_files_total = CounterMetricFamily(
+        backup_files_total = GaugeMetricFamily(
             "restic_backup_files_total",
             "Number of files in the backup",
             labels=common_label_names,
         )
-        backup_size_total = CounterMetricFamily(
+        backup_size_total = GaugeMetricFamily(
             "restic_backup_size_total",
             "Total size of backup in bytes",
             labels=common_label_names,
         )
-        backup_files_new = CounterMetricFamily(
+        backup_files_new = GaugeMetricFamily(
             "restic_backup_files_new",
             "Number of new files in the backup",
             labels=common_label_names,
         )
-        backup_files_changed = CounterMetricFamily(
+        backup_files_changed = GaugeMetricFamily(
             "restic_backup_files_changed",
             "Number of changed files in the backup",
             labels=common_label_names,
         )
-        backup_files_unmodified = CounterMetricFamily(
+        backup_files_unmodified = GaugeMetricFamily(
             "restic_backup_files_unmodified",
             "Number of unmodified files in the backup",
             labels=common_label_names,
         )
-        backup_dirs_new = CounterMetricFamily(
+        backup_dirs_new = GaugeMetricFamily(
             "restic_backup_dirs_new",
             "Number of new directories in the backup",
             labels=common_label_names,
         )
-        backup_dirs_changed = CounterMetricFamily(
+        backup_dirs_changed = GaugeMetricFamily(
             "restic_backup_dirs_changed",
             "Number of changed directories in the backup",
             labels=common_label_names,
         )
-        backup_dirs_unmodified = CounterMetricFamily(
+        backup_dirs_unmodified = GaugeMetricFamily(
             "restic_backup_dirs_unmodified",
             "Number of unmodified directories in the backup",
             labels=common_label_names,
         )
-        backup_data_added_bytes = CounterMetricFamily(
+        backup_data_added_bytes = GaugeMetricFamily(
             "restic_backup_data_added_bytes",
             "Number of bytes added in the backup",
             labels=common_label_names,
         )
-        backup_duration_seconds = CounterMetricFamily(
+        backup_duration_seconds = GaugeMetricFamily(
             "restic_backup_duration_seconds",
             "Amount of time Restic took to make the backup",
             labels=common_label_names,
@@ -186,8 +219,12 @@ class ResticCollector(Collector):
 
         check_success.add_metric([], self.metrics.check_success)
         locks_total.add_metric([], self.metrics.locks_total)
-        snapshots_total.add_metric([], self.metrics.snapshots_total)
         scrape_duration_seconds.add_metric([], self.metrics.duration)
+        size_total.add_metric([], self.metrics.global_stats.total_size)
+        uncompressed_size_total.add_metric([], self.metrics.global_stats.total_uncompressed_size)
+        compression_ratio.add_metric([], self.metrics.global_stats.compression_ratio)
+        blob_count_total.add_metric([], self.metrics.global_stats.total_blob_count)
+        snapshots_total.add_metric([], self.metrics.global_stats.total_snapshots_count)
 
         for client in self.metrics.clients:
             common_label_values = [
@@ -215,8 +252,12 @@ class ResticCollector(Collector):
 
         yield check_success
         yield locks_total
-        yield snapshots_total
         yield scrape_duration_seconds
+        yield size_total
+        yield uncompressed_size_total
+        yield compression_ratio
+        yield blob_count_total
+        yield snapshots_total
         yield backup_timestamp
         yield backup_snapshots_total
         yield backup_files_total
@@ -262,7 +303,7 @@ class ResticCollector(Collector):
                 stats = snap.stats
             else:
                 # this is the legacy way for Restic < 0.17
-                stats = self.get_stats(snap.id)
+                stats = self.get_stats_legacy(snap.id)
             clients.append(
                 ResticClient(
                     hostname=snap.hostname,
@@ -278,9 +319,7 @@ class ResticCollector(Collector):
                 )
             )
 
-        # todo: fix the commented code when the bug is fixed in restic
-        #  https://github.com/restic/restic/issues/2126
-        # stats = self.get_stats()
+        global_stats = self.get_stats_global()
 
         if self.disable_check:
             # return 2 as "no-check" value
@@ -298,8 +337,8 @@ class ResticCollector(Collector):
             check_success=check_success,
             locks_total=locks_total,
             clients=clients,
-            snapshots_total=sum(snap_total_counter.values()),
             duration=time.time() - duration,
+            global_stats=global_stats,
         )
 
     def get_snapshots_counters(self) -> dict[str, int]:
@@ -355,7 +394,28 @@ class ResticCollector(Collector):
             raise Exception("Error executing restic snapshot command: " + self.parse_stderr(result))
         return json.loads(result.stdout.decode("utf-8"))
 
-    def get_stats(self, snapshot_id: str) -> ResticStats:
+    def get_stats_global(self) -> ResticGlobalStats:
+        stats = ResticGlobalStats(
+            total_size=-1,
+            total_uncompressed_size=-1,
+            compression_ratio=-1,
+            total_blob_count=-1,
+            total_snapshots_count=-1,
+        )
+        if self.disable_global_stats:
+            return stats
+
+        stats_data = self.get_stats_data(snapshot_id=None, raw_mode=True)
+
+        stats.total_size = stats_data["total_size"]
+        stats.total_uncompressed_size = stats_data["total_uncompressed_size"]
+        stats.compression_ratio = stats_data["compression_ratio"]
+        stats.total_blob_count = stats_data["total_blob_count"]
+        stats.total_snapshots_count = stats_data["snapshots_count"]
+
+        return stats
+
+    def get_stats_legacy(self, snapshot_id: str) -> ResticStats:
         stats = ResticStats(
             total_size=-1,
             total_file_count=-1,
@@ -368,30 +428,38 @@ class ResticCollector(Collector):
             data_added=-1,
             duration=-1,
         )
-        if self.disable_stats:
+        if self.disable_legacy_stats:
             return stats
 
-        # This command is expensive in CPU/Memory (1-5 seconds),
-        # and much more when snapshot_id=None (3 minutes) -> we avoid this call for now
-        # https://github.com/restic/restic/issues/2126
-        if snapshot_id in self.stats_cache:
-            return self.stats_cache[snapshot_id]
+        # We use a local cache because this command is expensive
+        if snapshot_id in self.stats_snapshot_cache:
+            return self.stats_snapshot_cache[snapshot_id]
 
-        cmd = ["restic", "--no-lock", "stats", "--json", snapshot_id]
+        stats_data = self.get_stats_data(snapshot_id=snapshot_id, raw_mode=False)
+
+        stats.total_size = stats_data["total_size"]
+        stats.total_file_count = stats_data["total_file_count"]
+        self.stats_snapshot_cache[snapshot_id] = stats
+
+        return stats
+
+    def get_stats_data(self, snapshot_id: str | None, raw_mode: bool) -> dict:
+        # This command is expensive in CPU/Memory (1-5 seconds)
+        cmd = ["restic", "--no-lock", "stats", "--json"]
+
+        if raw_mode:
+            cmd.extend(["--mode", "raw-data"])
 
         if self.insecure_tls:
             cmd.extend(["--insecure-tls"])
 
+        if snapshot_id is not None:
+            cmd.append(snapshot_id)
+
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception("Error executing restic stats command: " + self.parse_stderr(result))
-        stats_dict = json.loads(result.stdout.decode("utf-8"))
-
-        stats.total_size = stats_dict["total_size"]
-        stats.total_file_count = stats_dict["total_file_count"]
-        self.stats_cache[snapshot_id] = stats
-
-        return stats
+        return json.loads(result.stdout.decode("utf-8"))
 
     def get_check(self) -> int:
         # This command takes 20 seconds or more, but it's required
@@ -513,12 +581,17 @@ def main(refresh_loop: bool = True) -> None:
         )
         sys.exit(1)
 
+    if os.environ.get("NO_STATS") is not None:
+        logging.error("The environment variable NO_STATS was removed in version 2.0.0. Checkout the changelog.")
+        sys.exit(1)
+
     exporter_address = os.environ.get("LISTEN_ADDRESS", "0.0.0.0")
     exporter_port = int(os.environ.get("LISTEN_PORT", 8001))
     exporter_refresh_interval = int(os.environ.get("REFRESH_INTERVAL", 60))
     exporter_exit_on_error = bool(os.environ.get("EXIT_ON_ERROR", False))
     exporter_disable_check = bool(os.environ.get("NO_CHECK", False))
-    exporter_disable_stats = bool(os.environ.get("NO_STATS", False))
+    exporter_disable_global_stats = bool(os.environ.get("NO_GLOBAL_STATS", False))
+    exporter_disable_legacy_stats = bool(os.environ.get("NO_LEGACY_STATS", False))
     exporter_disable_locks = bool(os.environ.get("NO_LOCKS", False))
     exporter_include_paths = bool(os.environ.get("INCLUDE_PATHS", False))
     exporter_insecure_tls = bool(os.environ.get("INSECURE_TLS", False))
@@ -526,7 +599,8 @@ def main(refresh_loop: bool = True) -> None:
     try:
         collector = ResticCollector(
             disable_check=exporter_disable_check,
-            disable_stats=exporter_disable_stats,
+            disable_global_stats=exporter_disable_global_stats,
+            disable_legacy_stats=exporter_disable_legacy_stats,
             disable_locks=exporter_disable_locks,
             include_paths=exporter_include_paths,
             insecure_tls=exporter_insecure_tls,

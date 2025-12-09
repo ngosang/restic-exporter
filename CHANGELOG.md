@@ -2,19 +2,24 @@
 
 ## 2.0.0 (upcoming)
 
-* New method of getting per backup statistics (stats):
+* Added more global statistics for the repository:
+  * You can disable this feature with the "NO_GLOBAL_STATS" env var
+  * Added new metrics: "restic_size_total", "restic_uncompressed_size_total", "restic_compression_ratio",
+"restic_blob_count_total"
+* New method of getting per backup statistics:
   * For clients with Restic >= 0.17 it is much faster and it is always enabled
-  * For older clients we use the previous method and you can use "NO_STATS" env var
+  * For older clients we use the previous method. The "NO_STATS" env var has been renamed to "NO_LEGACY_STATS"
   * The value of "restic_backup_files_total" has been fixed. The value provided by "restic stats" was wrong
   * Added new metrics per backup: "restic_backup_files_new", "restic_backup_files_changed",
 "restic_backup_files_unmodified", "restic_backup_dirs_new", "restic_backup_dirs_changed",
 "restic_backup_dirs_unmodified", "restic_backup_data_added_bytes", "restic_backup_duration_seconds"
-* Support RESTIC_PASSWORD_COMMAND env var for repository password configuration
+* Support "RESTIC_PASSWORD_COMMAND" env var for repository password configuration
 * Include Restic Exporter version in the log traces
 * Use UV as package manager for local development
 * Cleanup the code and add unit tests
+* All metrics are exported as Prometheus Gauge Metrics
 * Add warning in the readme about remote Restic repository costs
-* Update docker-compose examples
+* Update Docker Compose examples
 * Publish Docker image for architecture linux/riscv64
 * Update Restic 0.18.1 (built with Go 1.24)
 * Update Python 3.14 and dependencies

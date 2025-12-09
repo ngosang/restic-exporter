@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from exporter.exporter import ResticCollector, ResticSnapshot, ResticStats, get_version, main
+from exporter.exporter import ResticCollector, ResticGlobalStats, ResticSnapshot, ResticStats, get_version, main
 
 
 @pytest.fixture
@@ -14,7 +14,8 @@ def restic_collector():
     """Fixture for ResticCollector instance with default params"""
     return ResticCollector(
         disable_check=False,
-        disable_stats=False,
+        disable_global_stats=False,
+        disable_legacy_stats=False,
         disable_locks=False,
         include_paths=False,
         insecure_tls=False,
@@ -86,6 +87,20 @@ def mock_stats_data():
 
 
 @pytest.fixture
+def mock_stats_raw_data():
+    """Sample stats data as returned by restic stats --json --mode raw-data"""
+    return {
+        "total_size": 385734388076,
+        "total_uncompressed_size": 440775833765,
+        "compression_ratio": 1.1426926076348562,
+        "compression_progress": 100,
+        "compression_space_saving": 12.487400958180794,
+        "total_blob_count": 1522470,
+        "snapshots_count": 1893,
+    }
+
+
+@pytest.fixture
 def mock_subprocess_run():
     """Mock subprocess.run for restic commands"""
     with patch("exporter.exporter.subprocess.run") as mock_run:
@@ -93,13 +108,15 @@ def mock_subprocess_run():
 
 
 @pytest.fixture
-def mock_restic_cli(mock_subprocess_run, mock_snapshots_data, mock_stats_data):
+def mock_restic_cli(mock_subprocess_run, mock_snapshots_data, mock_stats_data, mock_stats_raw_data):
     # noinspection PyUnusedLocal
     def mock_run_side_effect(cmd, **kwargs):
         if "snapshots" in cmd:
             return MagicMock(returncode=0, stdout=json.dumps(mock_snapshots_data).encode("utf-8"), stderr=b"")
-        elif "stats" in cmd:
+        elif "stats" in cmd and "raw-data" not in cmd:
             return MagicMock(returncode=0, stdout=json.dumps(mock_stats_data).encode("utf-8"), stderr=b"")
+        elif "stats" in cmd and "raw-data" in cmd:
+            return MagicMock(returncode=0, stdout=json.dumps(mock_stats_raw_data).encode("utf-8"), stderr=b"")
         elif "locks" in cmd:
             return MagicMock(returncode=0, stdout=b"abc123\ndef456\n", stderr=b"")
         elif "check" in cmd:
@@ -136,17 +153,21 @@ class TestResticCollector:
         restic_collector.refresh()
         metrics = list(restic_collector.collect())
 
-        assert len(metrics) == 16  # All metric families
+        assert len(metrics) == 20  # All metric families
         metric_names = [m.name for m in metrics]
 
         assert "restic_check_success" in metric_names
-        assert "restic_locks" in metric_names
-        assert "restic_snapshots" in metric_names
+        assert "restic_locks_total" in metric_names
         assert "restic_scrape_duration_seconds" in metric_names
+        assert "restic_size_total" in metric_names
+        assert "restic_uncompressed_size_total" in metric_names
+        assert "restic_compression_ratio" in metric_names
+        assert "restic_blob_count_total" in metric_names
+        assert "restic_snapshots_total" in metric_names
         assert "restic_backup_timestamp" in metric_names
-        assert "restic_backup_snapshots" in metric_names
-        assert "restic_backup_files" in metric_names
-        assert "restic_backup_size" in metric_names
+        assert "restic_backup_snapshots_total" in metric_names
+        assert "restic_backup_files_total" in metric_names
+        assert "restic_backup_size_total" in metric_names
         assert "restic_backup_files_new" in metric_names
         assert "restic_backup_files_changed" in metric_names
         assert "restic_backup_files_unmodified" in metric_names
@@ -158,14 +179,15 @@ class TestResticCollector:
 
     def test_get_metrics_disabled_features(self, restic_collector, mock_restic_cli):
         restic_collector.disable_check = True
-        restic_collector.disable_stats = True
+        restic_collector.disable_global_stats = True
+        restic_collector.disable_legacy_stats = True
         restic_collector.disable_locks = True
         restic_collector.include_paths = False
         metrics = restic_collector.get_metrics()
 
         assert metrics.check_success == 2  # No-check value
         assert metrics.locks_total == 0  # No-locks value
-        assert metrics.snapshots_total == 3
+        assert metrics.global_stats.total_size == -1  # No-global-stats value
         assert len(metrics.clients) == 2  # Two unique hashes
         assert metrics.duration >= 0
         # Stats from snapshot summary, paths are disabled
@@ -177,13 +199,26 @@ class TestResticCollector:
 
     def test_get_metrics_with_check(self, restic_collector, mock_restic_cli):
         restic_collector.disable_check = False
-        restic_collector.disable_stats = True
+        restic_collector.disable_global_stats = True
+        restic_collector.disable_legacy_stats = True
         restic_collector.disable_locks = True
         restic_collector.include_paths = False
         metrics = restic_collector.get_metrics()
 
         assert metrics.check_success == 1  # Check passed
         # 2 snapshots + 1 check called
+        assert mock_restic_cli.call_count == 3
+
+    def test_get_metrics_with_global_stats(self, restic_collector, mock_restic_cli):
+        restic_collector.disable_check = True
+        restic_collector.disable_global_stats = False
+        restic_collector.disable_legacy_stats = True
+        restic_collector.disable_locks = True
+        restic_collector.include_paths = False
+        metrics = restic_collector.get_metrics()
+
+        assert metrics.global_stats.total_size == 385734388076
+        # 2 snapshots + 1 global stats called
         assert mock_restic_cli.call_count == 3
 
     def test_get_metrics_with_legacy_stats(self, restic_collector, mock_subprocess_run, mock_stats_data):
@@ -218,7 +253,8 @@ class TestResticCollector:
         mock_subprocess_run.side_effect = mock_run_side_effect
 
         restic_collector.disable_check = True
-        restic_collector.disable_stats = False
+        restic_collector.disable_global_stats = True
+        restic_collector.disable_legacy_stats = False
         restic_collector.disable_locks = True
         restic_collector.include_paths = False
         metrics = restic_collector.get_metrics()
@@ -232,7 +268,7 @@ class TestResticCollector:
         assert mock_subprocess_run.call_count == 4
 
         # Stats disabled
-        restic_collector.disable_stats = True
+        restic_collector.disable_legacy_stats = True
         metrics = restic_collector.get_metrics()
 
         # Verify stats are collected
@@ -245,7 +281,8 @@ class TestResticCollector:
 
     def test_get_metrics_with_locks(self, restic_collector, mock_restic_cli):
         restic_collector.disable_check = True
-        restic_collector.disable_stats = True
+        restic_collector.disable_global_stats = True
+        restic_collector.disable_legacy_stats = True
         restic_collector.disable_locks = False
         restic_collector.include_paths = False
         metrics = restic_collector.get_metrics()
@@ -256,7 +293,8 @@ class TestResticCollector:
 
     def test_get_metrics_with_paths(self, restic_collector, mock_restic_cli):
         restic_collector.disable_check = True
-        restic_collector.disable_stats = True
+        restic_collector.disable_global_stats = True
+        restic_collector.disable_legacy_stats = True
         restic_collector.disable_locks = True
         restic_collector.include_paths = True
         metrics = restic_collector.get_metrics()
@@ -270,13 +308,13 @@ class TestResticCollector:
     def test_get_metrics_snapshot_counter(self, restic_collector, mock_restic_cli):
         """Test that snapshot counter works correctly"""
         restic_collector.disable_check = True
-        restic_collector.disable_stats = True
+        restic_collector.disable_global_stats = True
+        restic_collector.disable_legacy_stats = True
         restic_collector.disable_locks = True
         restic_collector.include_paths = False
         metrics = restic_collector.get_metrics()
 
-        assert metrics.snapshots_total == 3  # Total snapshots
-        assert len(metrics.clients) == 2  # Two unique hashes
+        assert len(metrics.clients) == 2  # There are 3 snapshots, but only 2 unique hashes
         client_1 = metrics.clients[0]
         assert client_1.snapshots_total == 2
         assert client_1.timestamp == 1673503173.0  # Timestamp of newest snapshot
@@ -397,15 +435,40 @@ class TestResticCollector:
             "--insecure-tls",
         ]
 
-    def test_get_stats(self, restic_collector, mock_subprocess_run, mock_stats_data):
-        assert len(restic_collector.stats_cache) == 0
+    def test_get_stats_global(self, restic_collector, mock_subprocess_run, mock_stats_raw_data):
+        assert len(restic_collector.stats_snapshot_cache) == 0
+        mock_subprocess_run.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(mock_stats_raw_data).encode("utf-8"), stderr=b""
+        )
+        stats = restic_collector.get_stats_global()
+        assert stats == ResticGlobalStats(
+            total_size=385734388076,
+            total_uncompressed_size=440775833765,
+            compression_ratio=1.1426926076348562,
+            total_blob_count=1522470,
+            total_snapshots_count=1893,
+        )
+        assert mock_subprocess_run.call_count == 1
+
+        # Disabled stats
+        restic_collector.disable_global_stats = True
+        stats = restic_collector.get_stats_global()
+        assert stats == ResticGlobalStats(
+            total_size=-1,
+            total_uncompressed_size=-1,
+            compression_ratio=-1,
+            total_blob_count=-1,
+            total_snapshots_count=-1,
+        )
+        assert mock_subprocess_run.call_count == 1  # No new call
+
+    def test_get_stats_legacy(self, restic_collector, mock_subprocess_run, mock_stats_data):
+        assert len(restic_collector.stats_snapshot_cache) == 0
         mock_subprocess_run.return_value = MagicMock(
             returncode=0, stdout=json.dumps(mock_stats_data).encode("utf-8"), stderr=b""
         )
-        stats = restic_collector.get_stats("abc123")
-        assert stats.total_size == 1073741824
-        assert stats.total_file_count == 1000
-        assert stats == ResticStats(
+        stats_1 = restic_collector.get_stats_legacy("abc123")
+        assert stats_1 == ResticStats(
             total_size=1073741824,
             total_file_count=1000,
             files_new=-1,
@@ -417,51 +480,18 @@ class TestResticCollector:
             data_added=-1,
             duration=-1,
         )
-        assert mock_subprocess_run.call_args[0][0] == [
-            "restic",
-            "--no-lock",
-            "stats",
-            "--json",
-            "abc123",
-        ]
         assert mock_subprocess_run.call_count == 1
-        assert len(restic_collector.stats_cache) == 1
-        assert restic_collector.stats_cache["abc123"] == stats
+        assert len(restic_collector.stats_snapshot_cache) == 1
+        assert restic_collector.stats_snapshot_cache["abc123"] == stats_1
 
         # Cached value (2nd call, value is cached, so no new subprocess call)
-        stats = restic_collector.get_stats("abc123")
-        assert stats.total_size == 1073741824
-        assert stats.total_file_count == 1000
-        assert mock_subprocess_run.call_count == 1
-
-        # Error
-        mock_subprocess_run.return_value = MagicMock(returncode=1, stdout=b"", stderr=b"Error: snapshot not found")
-        with pytest.raises(Exception, match="Error executing restic stats command"):
-            restic_collector.get_stats("xyz222")
-        assert mock_subprocess_run.call_count == 2
-
-        # Insecure TLS
-        restic_collector.insecure_tls = True
-        mock_subprocess_run.return_value = MagicMock(
-            returncode=0, stdout=json.dumps(mock_stats_data).encode("utf-8"), stderr=b""
-        )
-        stats = restic_collector.get_stats("xyz333")
-        assert stats.total_size == 1073741824
-        assert stats.total_file_count == 1000
-        assert mock_subprocess_run.call_args[0][0] == [
-            "restic",
-            "--no-lock",
-            "stats",
-            "--json",
-            "xyz333",
-            "--insecure-tls",
-        ]
-        assert mock_subprocess_run.call_count == 3
-        assert len(restic_collector.stats_cache) == 2
+        stats_2 = restic_collector.get_stats_legacy("abc123")
+        assert stats_2 == stats_1
+        assert mock_subprocess_run.call_count == 1  # No new call
 
         # Disabled stats
-        restic_collector.disable_stats = True
-        stats = restic_collector.get_stats("xyz444")
+        restic_collector.disable_legacy_stats = True
+        stats = restic_collector.get_stats_legacy("xyz444")
         assert stats == ResticStats(
             total_size=-1,
             total_file_count=-1,
@@ -474,7 +504,55 @@ class TestResticCollector:
             data_added=-1,
             duration=-1,
         )
-        assert mock_subprocess_run.call_count == 3  # No new call
+        assert mock_subprocess_run.call_count == 1  # No new call
+
+    def test_get_stats_data(self, restic_collector, mock_subprocess_run, mock_stats_data, mock_stats_raw_data):
+        # snapshot_id, raw_mode=False (used by get_stats_snapshot)
+        mock_subprocess_run.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(mock_stats_data).encode("utf-8"), stderr=b""
+        )
+        stats = restic_collector.get_stats_data(snapshot_id="abc123", raw_mode=False)
+        assert stats == mock_stats_data
+        assert mock_subprocess_run.call_args[0][0] == [
+            "restic",
+            "--no-lock",
+            "stats",
+            "--json",
+            "abc123",
+        ]
+        assert mock_subprocess_run.call_count == 1
+
+        # snapshot_id=None, raw_mode=True (used by get_stats_global)
+        mock_subprocess_run.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(mock_stats_raw_data).encode("utf-8"), stderr=b""
+        )
+        stats = restic_collector.get_stats_data(snapshot_id=None, raw_mode=True)
+        assert stats == mock_stats_raw_data
+        assert mock_subprocess_run.call_args[0][0] == ["restic", "--no-lock", "stats", "--json", "--mode", "raw-data"]
+        assert mock_subprocess_run.call_count == 2
+
+        # Error
+        mock_subprocess_run.return_value = MagicMock(returncode=1, stdout=b"", stderr=b"Error: snapshot not found")
+        with pytest.raises(Exception, match="Error executing restic stats command"):
+            restic_collector.get_stats_data(snapshot_id="xyz222", raw_mode=False)
+        assert mock_subprocess_run.call_count == 3
+
+        # Insecure TLS
+        restic_collector.insecure_tls = True
+        mock_subprocess_run.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(mock_stats_data).encode("utf-8"), stderr=b""
+        )
+        stats = restic_collector.get_stats_data(snapshot_id="xyz333", raw_mode=False)
+        assert stats == mock_stats_data
+        assert mock_subprocess_run.call_args[0][0] == [
+            "restic",
+            "--no-lock",
+            "stats",
+            "--json",
+            "--insecure-tls",
+            "xyz333",
+        ]
+        assert mock_subprocess_run.call_count == 4
 
     def test_get_check(self, restic_collector, mock_subprocess_run, caplog):
         mock_subprocess_run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
@@ -644,7 +722,8 @@ class TestMain:
         mock_register.assert_called_once()
         collector = mock_register.call_args[0][0]
         assert collector.disable_check is False
-        assert collector.disable_stats is False
+        assert collector.disable_global_stats is False
+        assert collector.disable_legacy_stats is False
         assert collector.disable_locks is False
         assert collector.include_paths is False
         assert collector.insecure_tls is False
@@ -672,7 +751,8 @@ class TestMain:
             "LISTEN_ADDRESS": "127.0.0.1",
             "LISTEN_PORT": "8002",
             "NO_CHECK": "True",
-            "NO_STATS": "True",
+            "NO_GLOBAL_STATS": "True",
+            "NO_LEGACY_STATS": "True",
             "NO_LOCKS": "True",
             "INCLUDE_PATHS": "True",
             "INSECURE_TLS": "True",
@@ -685,7 +765,8 @@ class TestMain:
         mock_register.assert_called_once()
         collector = mock_register.call_args[0][0]
         assert collector.disable_check is True
-        assert collector.disable_stats is True
+        assert collector.disable_global_stats is True
+        assert collector.disable_legacy_stats is True
         assert collector.disable_locks is True
         assert collector.include_paths is True
         assert collector.insecure_tls is True
@@ -698,13 +779,22 @@ class TestMain:
     @patch("exporter.exporter.start_http_server")
     @patch("exporter.exporter.REGISTRY.register")
     @patch("sys.exit")
+    @patch.dict(
+        os.environ,
+        {
+            "NO_STATS": "True",
+        },
+    )
     def test_main_error(self, mock_sys_exit, _mock_register, _mock_start_server, mock_restic_cli, caplog):
         caplog.set_level(logging.ERROR)
 
         main(refresh_loop=False)
-        assert mock_sys_exit.call_count == 2
+        assert mock_sys_exit.call_count == 3
         assert "The environment variable RESTIC_REPOSITORY is mandatory" in caplog.messages
         assert (
             "One of the environment variables RESTIC_PASSWORD, RESTIC_PASSWORD_FILE or "
             "RESTIC_PASSWORD_COMMAND is mandatory"
         ) in caplog.messages
+        assert (
+            "The environment variable NO_STATS was removed in version 2.0.0. Checkout the changelog." in caplog.messages
+        )
