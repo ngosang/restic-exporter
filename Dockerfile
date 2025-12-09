@@ -40,6 +40,6 @@ CMD ["/usr/local/bin/python", "-u", "/app/exporter.py"]
 # docker buildx create --use
 # -> Build for multiple architectures (run 2 commands separately to avoid filling the disk)
 # docker buildx build -t restic-exporter:custom --platform linux/386,linux/amd64,linux/arm/v6,linux/arm/v7 --progress=plain .
-# docker buildx build -t restic-exporter:custom --platform linux/arm64/v8,linux/ppc64le,linux/riscv64,linux/s390x --progress=plain .
+# docker buildx build -t restic-exporter:custom --platform linux/arm64,linux/ppc64le,linux/riscv64,linux/s390x --progress=plain .
 #
 # add --push to publish in DockerHub
