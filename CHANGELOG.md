@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.0 (upcoming)
+## 2.0.0 (2025/12/09)
 
 * Added more global statistics for the repository:
   * You can disable this feature with the "NO_GLOBAL_STATS" env var
