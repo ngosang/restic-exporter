@@ -14,6 +14,7 @@
 "restic_backup_files_unmodified", "restic_backup_dirs_new", "restic_backup_dirs_changed",
 "restic_backup_dirs_unmodified", "restic_backup_data_added_bytes", "restic_backup_duration_seconds"
 * Support "RESTIC_PASSWORD_COMMAND" env var for repository password configuration
+* Change the default value of "REFRESH_INTERVAL" env var to 3600 (1 hour)
 * Include Restic Exporter version in the log traces
 * Use UV as package manager for local development
 * Cleanup the code and add unit tests

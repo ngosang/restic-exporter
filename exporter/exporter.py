@@ -587,7 +587,7 @@ def main(refresh_loop: bool = True) -> None:
 
     exporter_address = os.environ.get("LISTEN_ADDRESS", "0.0.0.0")
     exporter_port = int(os.environ.get("LISTEN_PORT", 8001))
-    exporter_refresh_interval = int(os.environ.get("REFRESH_INTERVAL", 60))
+    exporter_refresh_interval = int(os.environ.get("REFRESH_INTERVAL", 3600))
     exporter_exit_on_error = bool(os.environ.get("EXIT_ON_ERROR", False))
     exporter_disable_check = bool(os.environ.get("NO_CHECK", False))
     exporter_disable_global_stats = bool(os.environ.get("NO_GLOBAL_STATS", False))

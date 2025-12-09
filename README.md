@@ -71,7 +71,7 @@ services:
       - RESTIC_REPOSITORY=/data
       - RESTIC_PASSWORD=<password_here>
       # - RESTIC_PASSWORD_FILE=<file_path_with_password_here>
-      - REFRESH_INTERVAL=1800 # 30 min
+      - REFRESH_INTERVAL=3600 # 1 hour
     volumes:
       - /host_path/restic/data:/data
     ports:
@@ -87,7 +87,7 @@ docker run -d \
   -e TZ=Europe/Madrid \
   -e RESTIC_REPOSITORY=/data \
   -e RESTIC_PASSWORD=<password_here> \
-  -e REFRESH_INTERVAL=1800 \
+  -e REFRESH_INTERVAL=3600 \
   -p 8001:8001 \
   --restart unless-stopped \
   ngosang/restic-exporter
@@ -113,18 +113,13 @@ All configuration is done with environment variables:
 with the file.
   - `RESTIC_PASSWORD_COMMAND`: Program to be called when the password is needed.
 
-- `AWS_ACCESS_KEY_ID`: (Optional) Required for Amazon S3, Minio and Wasabi backends.
-- `AWS_SECRET_ACCESS_KEY`: (Optional) Required for Amazon S3, Minio and Wasabi backends.
-- `B2_ACCOUNT_ID`: (Optional) Required for Backblaze B2 backend.
-- `B2_ACCOUNT_KEY`: (Optional) Required for Backblaze B2 backend.
 - `REFRESH_INTERVAL`: (Optional) Refresh interval for the metrics in seconds. Computing the metrics is an expensive
-task, keep this value as high as possible. Default is `60` seconds.
+task, keep this value as high as possible. Default is `3600` seconds (1 hour).
   - **WARNING**: With default settings, downloading from remote repositories may be costly if using this exporter with
 a remote Cloud-based restic repository (e.g. GCP GCS, Amazon S3). This may cause a surprisingly high spike in your
 infrastructure costs (e.g. for small restic repositories that don't download frequently, this may increase your costs
 by multiple orders of magnitude). Consider setting `REFRESH_INTERVAL` to considerably higher values (e.g. `86400` for
 once per day) to lower this impact.
-
 - `LISTEN_PORT`: (Optional) The address the exporter should listen on. The default is `8001`.
 - `LISTEN_ADDRESS`: (Optional) The address the exporter should listen on. The default is to listen on all addresses.
 - `LOG_LEVEL`: (Optional) Log level of the traces. The default is `INFO`.
@@ -142,6 +137,10 @@ applies for backups performed with an old version of the Restic client.
 - `INCLUDE_PATHS`: (Optional) Include snapshot paths for each backup. The paths are separated by commas. Default is
 `False` (not collect the paths).
 - `INSECURE_TLS`: (Optional) skip TLS verification for self-signed certificates. Default is `False` (not skip).
+- `AWS_ACCESS_KEY_ID`: (Optional) Required for Amazon S3, Minio and Wasabi backends.
+- `AWS_SECRET_ACCESS_KEY`: (Optional) Required for Amazon S3, Minio and Wasabi backends.
+- `B2_ACCOUNT_ID`: (Optional) Required for Backblaze B2 backend.
+- `B2_ACCOUNT_KEY`: (Optional) Required for Backblaze B2 backend.
 
 ### Configuration for Rclone
 
@@ -157,7 +156,7 @@ services:
       - TZ=Europe/Madrid
       - RESTIC_REPOSITORY=rclone:gd-backup:/restic
       - RESTIC_PASSWORD= 
-      - REFRESH_INTERVAL=1800 # 30 min
+      - REFRESH_INTERVAL=3600 # 1 hour
     volumes:
       - /host_path/restic/data:/data
       - /usr/bin/rclone:/usr/bin/rclone:ro
