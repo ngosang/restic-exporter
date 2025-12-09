@@ -22,6 +22,7 @@
 * Document in the README.md how to mount Restic repository cache in a Docker volume
 * Add warning in the README.md about remote Restic repository costs
 * Update Docker Compose examples
+* Update Grafana dashboard with new metrics
 * Publish Docker image for architecture linux/riscv64
 * Update Restic 0.18.1 (built with Go 1.24)
 * Update Python 3.14 and dependencies

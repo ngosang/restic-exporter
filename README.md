@@ -174,29 +174,45 @@ services:
 
 ```bash
 # HELP restic_check_success Result of restic check operation in the repository
-# TYPE restic_check_success gauge
 restic_check_success 1.0
 # HELP restic_locks_total Total number of locks in the repository
-# TYPE restic_locks_total counter
-restic_locks_total 1.0
+restic_locks_total 0.0
+# HELP restic_scrape_duration_seconds Amount of time each scrape takes
+restic_scrape_duration_seconds 87.033
+# HELP restic_size_total Total size of the repository in bytes
+restic_size_total 38573452
+# HELP restic_uncompressed_size_total Total uncompressed size of the repository in bytes
+restic_uncompressed_size_total 44077773
+# HELP restic_compression_ratio Compression ratio of the repository
+restic_compression_ratio 1.142
+# HELP restic_blob_count_total Total number of blobs in the repository
+restic_blob_count_total 1500
 # HELP restic_snapshots_total Total number of snapshots in the repository
-# TYPE restic_snapshots_total counter
 restic_snapshots_total 100.0
 # HELP restic_backup_timestamp Timestamp of the last backup
-# TYPE restic_backup_timestamp gauge
-restic_backup_timestamp{client_hostname="product.example.com",client_username="root",client_version="restic 0.16.0",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 1.666273638e+09
-# HELP restic_backup_files_total Number of files in the backup
-# TYPE restic_backup_files_total counter
-restic_backup_files_total{client_hostname="product.example.com",client_username="root",client_version="restic 0.16.0",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 8.0
-# HELP restic_backup_size_total Total size of backup in bytes
-# TYPE restic_backup_size_total counter
-restic_backup_size_total{client_hostname="product.example.com",client_username="root",client_version="restic 0.16.0",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 4.3309562e+07
+restic_backup_timestamp{client_hostname="example",client_username="root",client_version="restic 0.18.1",snapshot_hash="785c44996fa586ccf634fb0b45cd50d3afe8556ad44476bc5c3372bcdfbae4cd",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 1.666273638e+09
 # HELP restic_backup_snapshots_total Total number of snapshots
-# TYPE restic_backup_snapshots_total counter
-restic_backup_snapshots_total{client_hostname="product.example.com",client_username="root",client_version="restic 0.16.0",snapshot_hash="20795072cba0953bcdbe52e9cf9d75e5726042f5bbf2584bb2999372398ee835",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 1.0
-# HELP restic_scrape_duration_seconds Amount of time each scrape takes
-# TYPE restic_scrape_duration_seconds gauge
-restic_scrape_duration_seconds 166.9411084651947
+restic_backup_snapshots_total{client_hostname="example",client_username="root",client_version="restic 0.18.1",snapshot_hash="785c44996fa586ccf634fb0b45cd50d3afe8556ad44476bc5c3372bcdfbae4cd",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 1.0
+# HELP restic_backup_files_total Number of files in the backup
+restic_backup_files_total{client_hostname="example",client_username="root",client_version="restic 0.18.1",snapshot_hash="785c44996fa586ccf634fb0b45cd50d3afe8556ad44476bc5c3372bcdfbae4cd",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 8.0
+# HELP restic_backup_size_total Total size of backup in bytes
+restic_backup_size_total{client_hostname="example",client_username="root",client_version="restic 0.18.1",snapshot_hash="785c44996fa586ccf634fb0b45cd50d3afe8556ad44476bc5c3372bcdfbae4cd",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 4.3309562e+07
+# HELP restic_backup_files_new Number of new files in the backup
+restic_backup_files_new{client_hostname="example",client_username="root",client_version="restic 0.18.1",snapshot_hash="785c44996fa586ccf634fb0b45cd50d3afe8556ad44476bc5c3372bcdfbae4cd",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 2280.0
+# HELP restic_backup_files_changed Number of changed files in the backup
+restic_backup_files_changed{client_hostname="example",client_username="root",client_version="restic 0.18.1",snapshot_hash="785c44996fa586ccf634fb0b45cd50d3afe8556ad44476bc5c3372bcdfbae4cd",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 3167.0
+# HELP restic_backup_files_unmodified Number of unmodified files in the backup
+restic_backup_files_unmodified{client_hostname="example",client_username="root",client_version="restic 0.18.1",snapshot_hash="785c44996fa586ccf634fb0b45cd50d3afe8556ad44476bc5c3372bcdfbae4cd",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 239163.0
+# HELP restic_backup_dirs_new Number of new directories in the backup
+restic_backup_dirs_new{client_hostname="example",client_username="root",client_version="restic 0.18.1",snapshot_hash="785c44996fa586ccf634fb0b45cd50d3afe8556ad44476bc5c3372bcdfbae4cd",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 1.0
+# HELP restic_backup_dirs_changed Number of changed directories in the backup
+restic_backup_dirs_changed{client_hostname="example",client_username="root",client_version="restic 0.18.1",snapshot_hash="785c44996fa586ccf634fb0b45cd50d3afe8556ad44476bc5c3372bcdfbae4cd",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 255.0
+# HELP restic_backup_dirs_unmodified Number of unmodified directories in the backup
+restic_backup_dirs_unmodified{client_hostname="example",client_username="root",client_version="restic 0.18.1",snapshot_hash="785c44996fa586ccf634fb0b45cd50d3afe8556ad44476bc5c3372bcdfbae4cd",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 53499.0
+# HELP restic_backup_data_added_bytes Number of bytes added in the backup
+restic_backup_data_added_bytes{client_hostname="example",client_username="root",client_version="restic 0.18.1",snapshot_hash="785c44996fa586ccf634fb0b45cd50d3afe8556ad44476bc5c3372bcdfbae4cd",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 5.29759957e+08
+# HELP restic_backup_duration_seconds Amount of time Restic took to make the backup
+restic_backup_duration_seconds{client_hostname="example",client_username="root",client_version="restic 0.18.1",snapshot_hash="785c44996fa586ccf634fb0b45cd50d3afe8556ad44476bc5c3372bcdfbae4cd",snapshot_tag="mysql",snapshot_tags="mysql,tag2",snapshot_paths="/mysql/data,/mysql/config"} 33.165685
 ```
 
 ## Prometheus config
