@@ -15,6 +15,7 @@
 * Cleanup the code and add unit tests
 * Add warning in the readme about remote Restic repository costs
 * Update docker-compose examples
+* Publish Docker image for architecture linux/riscv64
 * Update Restic 0.18.1 (built with Go 1.24)
 * Update Python 3.14 and dependencies
 * Update base Docker image to Alpine 3.23

@@ -34,7 +34,12 @@ CMD ["/usr/local/bin/python", "-u", "/app/exporter.py"]
 # docker build -t restic-exporter:custom --progress=plain .
 #
 # Multi-arch build
+# -> Register interpreters for common architectures
+# docker run --rm --privileged tonistiigi/binfmt:latest --install all
+# -> Create a new buildx builder
 # docker buildx create --use
-# docker buildx build -t restic-exporter:custom --platform linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64/v8,linux/ppc64le,linux/s390x --progress=plain .
+# -> Build for multiple architectures (run 2 commands separately to avoid filling the disk)
+# docker buildx build -t restic-exporter:custom --platform linux/386,linux/amd64,linux/arm/v6,linux/arm/v7 --progress=plain .
+# docker buildx build -t restic-exporter:custom --platform linux/arm64/v8,linux/ppc64le,linux/riscv64,linux/s390x --progress=plain .
 #
 # add --push to publish in DockerHub
