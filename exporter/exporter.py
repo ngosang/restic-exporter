@@ -96,8 +96,6 @@ class ResticCollector(Collector):
         self.disable_locks = disable_locks
         self.include_paths = include_paths
         self.insecure_tls = insecure_tls
-        # todo: cold start -> the restic cache (/root/.cache/restic) could be
-        #   saved in a persistent volume
         self.stats_snapshot_cache: dict[str, ResticStats] = {}
         self.metrics: ResticMetrics | None = None
 
