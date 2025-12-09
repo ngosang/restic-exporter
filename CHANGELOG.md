@@ -27,6 +27,7 @@
 * Update Restic 0.18.1 (built with Go 1.24)
 * Update Python 3.14 and dependencies
 * Update base Docker image to Alpine 3.23
+* Update GitHub Actions
 
 ## 1.7.0 (2025/02/15)
 
@@ -38,7 +39,7 @@
 ## 1.6.0 (2024/08/16)
 
 * Fix lock count for latest versions of Restic
-* Added INSECURE_TLS environment variable skip TLS verification for self-signed certificates
+* Added INSECURE_TLS environment variable to skip TLS verification for self-signed certificates
 * Update Restic 0.17.0 (built with Go 1.22.6)
 * Update Python dependencies
 * Update base Docker image to Alpine 3.20

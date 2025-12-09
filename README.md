@@ -126,7 +126,7 @@ once per day) to lower this impact.
 - `LISTEN_PORT`: (Optional) The address the exporter should listen on. The default is `8001`.
 - `LISTEN_ADDRESS`: (Optional) The address the exporter should listen on. The default is to listen on all addresses.
 - `LOG_LEVEL`: (Optional) Log level of the traces. The default is `INFO`.
-- `EXIT_ON_ERROR`: (Optional) Shutdown exporter on any `restic` error. Default is `Flase` (only log error, such as
+- `EXIT_ON_ERROR`: (Optional) Shutdown exporter on any `restic` error. Default is `False` (only log error, such as
 network error with Cloud backends).
 - `NO_CHECK`: (Optional) Do not perform `restic check` operation for performance reasons. Default is `False` (perform
 `restic check`).
