@@ -19,7 +19,8 @@
 * Use UV as package manager for local development
 * Cleanup the code and add unit tests
 * All metrics are exported as Prometheus Gauge Metrics
-* Add warning in the readme about remote Restic repository costs
+* Document in the README.md how to mount Restic repository cache in a Docker volume
+* Add warning in the README.md about remote Restic repository costs
 * Update Docker Compose examples
 * Publish Docker image for architecture linux/riscv64
 * Update Restic 0.18.1 (built with Go 1.24)

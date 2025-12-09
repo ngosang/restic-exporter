@@ -56,9 +56,10 @@ The architectures supported by this image are:
 * linux/riscv64
 * linux/s390x
 
-#### docker-compose
+#### Docker Compose
 
-Compatible with docker-compose v2 schemas:
+NOTE: It is recommended to mount the `/root/.cache/restic` path as an external volume to speed up Restic Exporter
+startup time and to reduce costs if your repository is remote. This path contains the Restic repository cache. 
 
 ```yaml
 ---
@@ -74,12 +75,13 @@ services:
       - REFRESH_INTERVAL=3600 # 1 hour
     volumes:
       - /host_path/restic/data:/data
+      # - /host_path/restic/cache:/root/.cache/restic
     ports:
       - "8001:8001"
     restart: unless-stopped
 ```
 
-#### docker cli
+#### Docker CLI
 
 ```bash
 docker run -d \
@@ -89,6 +91,7 @@ docker run -d \
   -e RESTIC_PASSWORD=<password_here> \
   -e REFRESH_INTERVAL=3600 \
   -p 8001:8001 \
+  -v /host_path/restic/data:/data \
   --restart unless-stopped \
   ngosang/restic-exporter
 ```
@@ -159,6 +162,7 @@ services:
       - REFRESH_INTERVAL=3600 # 1 hour
     volumes:
       - /host_path/restic/data:/data
+      # - /host_path/restic/cache:/root/.cache/restic
       - /usr/bin/rclone:/usr/bin/rclone:ro
       - /host_path/restic/rclone.conf:/root/.config/rclone/rclone.conf:ro
     ports:
