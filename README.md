@@ -1,10 +1,11 @@
 # ngosang/restic-exporter
 
 [![Latest release](https://img.shields.io/github/v/release/ngosang/restic-exporter)](https://github.com/ngosang/restic-exporter/releases)
-[![Docker Pulls](https://img.shields.io/docker/pulls/ngosang/restic-exporter)](https://hub.docker.com/r/ngosang/restic-exporter/)
-[![Donate PayPal](https://img.shields.io/badge/Donate-PayPal-yellow.svg)](https://www.paypal.com/paypalme/diegoheras0xff)
-[![Donate Bitcoin](https://img.shields.io/badge/Donate-Bitcoin-f7931a.svg)](https://www.blockchain.com/btc/address/14EcPN47rWXkmFvjfohJx2rQxxoeBRJhej)
-[![Donate Ethereum](https://img.shields.io/badge/Donate-Ethereum-8c8c8c.svg)](https://www.blockchain.com/eth/address/0x0D1549BbB00926BF3D92c1A8A58695e982f1BE2E)
+[![Docker Pulls](https://img.shields.io/docker/pulls/ngosang/restic-exporter)](https://hub.docker.com/r/ngosang/restic-exporter)
+[![Docker Stars](https://img.shields.io/docker/stars/ngosang/restic-exporter)](https://hub.docker.com/r/ngosang/restic-exporter)
+[![GitHub Repo stars](https://img.shields.io/github/stars/ngosang/restic-exporter)](https://github.com/ngosang/restic-exporter)
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/ngosang)
 
 Prometheus exporter for the [Restic](https://github.com/restic/restic) backup system.
 
