@@ -553,6 +553,20 @@ def get_version() -> str:
     return "unknown"
 
 
+def parse_bool_env(env_var_name: str, default: bool = False) -> bool:
+    value = os.environ.get(env_var_name)
+
+    if value is None:
+        return default
+
+    # Explicit false values should return False
+    if value.strip().lower() in ("false", "0", ""):
+        return False
+
+    # Any other set string returns True
+    return True
+
+
 def main(refresh_loop: bool = True) -> None:
     logging.basicConfig(
         format="%(asctime)s %(levelname)-8s %(message)s",
@@ -586,13 +600,13 @@ def main(refresh_loop: bool = True) -> None:
     exporter_address = os.environ.get("LISTEN_ADDRESS", "0.0.0.0")
     exporter_port = int(os.environ.get("LISTEN_PORT", 8001))
     exporter_refresh_interval = int(os.environ.get("REFRESH_INTERVAL", 3600))
-    exporter_exit_on_error = bool(os.environ.get("EXIT_ON_ERROR", False))
-    exporter_disable_check = bool(os.environ.get("NO_CHECK", False))
-    exporter_disable_global_stats = bool(os.environ.get("NO_GLOBAL_STATS", False))
-    exporter_disable_legacy_stats = bool(os.environ.get("NO_LEGACY_STATS", False))
-    exporter_disable_locks = bool(os.environ.get("NO_LOCKS", False))
-    exporter_include_paths = bool(os.environ.get("INCLUDE_PATHS", False))
-    exporter_insecure_tls = bool(os.environ.get("INSECURE_TLS", False))
+    exporter_exit_on_error = parse_bool_env("EXIT_ON_ERROR", False)
+    exporter_disable_check = parse_bool_env("NO_CHECK", False)
+    exporter_disable_global_stats = parse_bool_env("NO_GLOBAL_STATS", False)
+    exporter_disable_legacy_stats = parse_bool_env("NO_LEGACY_STATS", False)
+    exporter_disable_locks = parse_bool_env("NO_LOCKS", False)
+    exporter_include_paths = parse_bool_env("INCLUDE_PATHS", False)
+    exporter_insecure_tls = parse_bool_env("INSECURE_TLS", False)
 
     try:
         collector = ResticCollector(

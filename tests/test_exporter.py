@@ -704,6 +704,60 @@ class TestResticCollector:
         assert result == "Error: repository not found  Exit code: 1"
 
 
+class TestParseBoolEnv:
+    """Test the parse_bool_env() helper function for boolean environment variable parsing"""
+
+    def test_false_values_false_string(self):
+        """Test that 'false' string correctly parses as False"""
+        with patch.dict(os.environ, {"TEST_VAR": "false"}):
+            assert parse_bool_env("TEST_VAR") is False
+
+    def test_false_values_false_uppercase(self):
+        """Test that 'False' string correctly parses as False"""
+        with patch.dict(os.environ, {"TEST_VAR": "False"}):
+            assert parse_bool_env("TEST_VAR") is False
+
+    def test_false_values_zero_string(self):
+        """Test that '0' string correctly parses as False"""
+        with patch.dict(os.environ, {"TEST_VAR": "0"}):
+            assert parse_bool_env("TEST_VAR") is False
+
+    def test_false_values_empty_string(self):
+        """Test that empty string correctly parses as False"""
+        with patch.dict(os.environ, {"TEST_VAR": ""}):
+            assert parse_bool_env("TEST_VAR") is False
+
+    def test_true_values_true_string(self):
+        """Test that 'true' string correctly parses as True"""
+        with patch.dict(os.environ, {"TEST_VAR": "true"}):
+            assert parse_bool_env("TEST_VAR") is True
+
+    def test_true_values_true_uppercase(self):
+        """Test that 'True' string correctly parses as True"""
+        with patch.dict(os.environ, {"TEST_VAR": "True"}):
+            assert parse_bool_env("TEST_VAR") is True
+
+    def test_true_values_one_string(self):
+        """Test that '1' string correctly parses as True"""
+        with patch.dict(os.environ, {"TEST_VAR": "1"}):
+            assert parse_bool_env("TEST_VAR") is True
+
+    def test_true_values_arbitrary_string(self):
+        """Test that arbitrary non-empty strings parse as True (lenient behavior)"""
+        with patch.dict(os.environ, {"TEST_VAR": "anything"}):
+            assert parse_bool_env("TEST_VAR") is True
+
+    def test_default_false_when_unset(self):
+        """Test that unset variable returns default False"""
+        with patch.dict(os.environ, {}, clear=True):
+            assert parse_bool_env("NONEXISTENT_VAR", False) is False
+
+    def test_default_true_when_unset(self):
+        """Test that unset variable returns default True"""
+        with patch.dict(os.environ, {}, clear=True):
+            assert parse_bool_env("NONEXISTENT_VAR", True) is True
+
+
 class TestMain:
     @patch("exporter.exporter.start_http_server")
     @patch("exporter.exporter.REGISTRY.register")
