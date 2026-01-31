@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.1 (2026/01/31)
+
+* Improve handling of boolean environemnt variables
+* Fix crash when collect() is called before metrics are ready
+
 ## 2.0.0 (2025/12/09)
 
 * Added more global statistics for the repository:
