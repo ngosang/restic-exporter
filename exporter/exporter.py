@@ -557,17 +557,12 @@ def get_version() -> str:
     return "unknown"
 
 
-def parse_bool_env(env_var_name: str, default: bool = False) -> bool:
+def parse_bool_env(env_var_name: str, default: bool) -> bool:
     value = os.environ.get(env_var_name)
-
     if value is None:
         return default
-
-    # Explicit false values should return False
-    if value.strip().lower() in ("false", "0", ""):
+    if value.strip().lower() in ("false", "f", "0", ""):
         return False
-
-    # Any other set string returns True
     return True
 
 
