@@ -102,6 +102,10 @@ class ResticCollector(Collector):
     def collect(self) -> Iterable[Metric]:
         logging.debug("Incoming request")
 
+        # If metrics haven't been collected yet, return empty
+        if self.metrics is None:
+            return
+
         common_label_names: list[str] = [
             "client_hostname",
             "client_username",

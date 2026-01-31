@@ -177,6 +177,14 @@ class TestResticCollector:
         assert "restic_backup_data_added_bytes" in metric_names
         assert "restic_backup_duration_seconds" in metric_names
 
+    def test_collect_metrics_when_none(self, restic_collector):
+        """Test the collect method returns empty when metrics are None"""
+        # Don't call refresh, so metrics stays None
+        assert restic_collector.metrics is None
+        metrics = list(restic_collector.collect())
+        # Should return empty list without crashing
+        assert len(metrics) == 0
+
     def test_get_metrics_disabled_features(self, restic_collector, mock_restic_cli):
         restic_collector.disable_check = True
         restic_collector.disable_global_stats = True
