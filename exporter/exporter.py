@@ -646,9 +646,9 @@ def main(refresh_loop: bool = True) -> None:
         start_http_server(exporter_port, exporter_address)
         # noinspection HttpUrlsUsage
         logging.info("Serving at http://%s:%d", exporter_address, exporter_port)
-        logging.debug("Refreshing stats every %d seconds", exporter_refresh_interval)
+        logging.info("Refreshing stats every %d seconds", exporter_refresh_interval)
         scheduler.add_job(func=collector.refresh, trigger='interval', seconds=exporter_refresh_interval)
-        while refresh_loop:
+        while True:
             time.sleep(1)
 
     except (KeyboardInterrupt, SystemExit):
