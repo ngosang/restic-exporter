@@ -576,6 +576,7 @@ def parse_bool_env(env_var_name: str, default: bool) -> bool:
 
 
 def main(refresh_loop: bool = True) -> None:
+    logging.getLogger("apscheduler").setLevel(logging.WARNING)  # silence the apscheduler debug messages
     logging.basicConfig(
         format="%(asctime)s %(levelname)-8s %(message)s",
         level=logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO")),
@@ -636,15 +637,13 @@ def main(refresh_loop: bool = True) -> None:
         REGISTRY.register(collector)
         start_http_server(exporter_port, exporter_address)
         logging.info("Serving at http://%s:%d", exporter_address, exporter_port)
-        logging.info("Refreshing stats every %d seconds", exporter_refresh_interval)
+        logging.debug("Refreshing stats every %d seconds", exporter_refresh_interval)
         scheduler.add_job(func=collector.refresh, trigger='interval', seconds=exporter_refresh_interval)
-        while True:
+        while refresh_loop:
             time.sleep(1)
 
     except (KeyboardInterrupt, SystemExit):
-        logging.info("Interrupted")
-    finally:
-        logging.info("Exiting")
+        logging.info("\nInterrupted")
         scheduler.shutdown()
         sys.exit(0)  # Stops subprocesses
 
