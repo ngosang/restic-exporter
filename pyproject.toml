@@ -9,6 +9,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 # NOTE: Update Dockerfile when changing dependencies
 dependencies = [
+    "apscheduler>=3.11.2",
     "prometheus-client==0.23.1",
 ]
 
@@ -37,3 +38,9 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "lf"
 docstring-code-format = true
+
+[tool.setuptools]
+packages = ["exporter"]
+
+[project.scripts]
+restic-exporter = "exporter.exporter:main"
