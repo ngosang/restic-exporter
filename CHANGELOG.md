@@ -1,8 +1,12 @@
 # Changelog
 
+## 2.0.2 (upcoming)
+
+* Support for Restic V1 repositories (prints a warning log trace)
+
 ## 2.0.1 (2026/01/31)
 
-* Improve handling of boolean environemnt variables
+* Improve handling of boolean environment variables
 * Fix crash when collect() is called before metrics are ready
 
 ## 2.0.0 (2025/12/09)
@@ -87,7 +91,7 @@
 
 * Add new label "snapshot_tag" in the metrics with the backup tag (if tags is present)
 * Add new metric "restic_scrape_duration_seconds"
-* Add EXIT_ON_ERROR env var to control behaviour on error
+* Add EXIT_ON_ERROR env var to control behavior on error
 * Add NO_CHECK env var to skip restic check stats
 * Add NO_STATS env var to skip stats per backup
 * Fix crash when backup username is empty. #7

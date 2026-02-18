@@ -101,6 +101,17 @@ def mock_stats_raw_data():
 
 
 @pytest.fixture
+def mock_stats_raw_data_v1():
+    """Sample stats data as returned by restic stats --json --mode raw-data for a V1 repository.
+    V1 repositories do not include compression-related fields."""
+    return {
+        "total_size": 757,
+        "total_blob_count": 2,
+        "snapshots_count": 1,
+    }
+
+
+@pytest.fixture
 def mock_subprocess_run():
     """Mock subprocess.run for restic commands"""
     with patch("exporter.exporter.subprocess.run") as mock_run:
@@ -469,6 +480,25 @@ class TestResticCollector:
             total_snapshots_count=-1,
         )
         assert mock_subprocess_run.call_count == 1  # No new call
+
+    def test_get_stats_global_v1_repository(
+        self, restic_collector, mock_subprocess_run, mock_stats_raw_data_v1, caplog
+    ):
+        mock_subprocess_run.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(mock_stats_raw_data_v1).encode("utf-8"), stderr=b""
+        )
+        with caplog.at_level(logging.WARNING):
+            stats = restic_collector.get_stats_global()
+
+        assert stats == ResticGlobalStats(
+            total_size=757,
+            total_uncompressed_size=-1,
+            compression_ratio=-1,
+            total_blob_count=2,
+            total_snapshots_count=1,
+        )
+        assert mock_subprocess_run.call_count == 1
+        assert any("It is recommended to upgrade to a Restic V2 repository" in msg for msg in caplog.messages)
 
     def test_get_stats_legacy(self, restic_collector, mock_subprocess_run, mock_stats_data):
         assert len(restic_collector.stats_snapshot_cache) == 0

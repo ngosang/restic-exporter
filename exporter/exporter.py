@@ -412,10 +412,18 @@ class ResticCollector(Collector):
         stats_data = self.get_stats_data(snapshot_id=None, raw_mode=True)
 
         stats.total_size = stats_data["total_size"]
-        stats.total_uncompressed_size = stats_data["total_uncompressed_size"]
-        stats.compression_ratio = stats_data["compression_ratio"]
         stats.total_blob_count = stats_data["total_blob_count"]
         stats.total_snapshots_count = stats_data["snapshots_count"]
+
+        # Compression fields are only available in Restic V2 repositories
+        if "total_uncompressed_size" in stats_data and "compression_ratio" in stats_data:
+            stats.total_uncompressed_size = stats_data["total_uncompressed_size"]
+            stats.compression_ratio = stats_data["compression_ratio"]
+        else:
+            logging.warning(
+                "Repository does not provide compression stats. "
+                "It is recommended to upgrade to a Restic V2 repository for full metrics support."
+            )
 
         return stats
 
@@ -636,6 +644,7 @@ def main(refresh_loop: bool = True) -> None:
         collector.refresh(exit_on_error=exporter_exit_on_error)
         REGISTRY.register(collector)
         start_http_server(exporter_port, exporter_address)
+        # noinspection HttpUrlsUsage
         logging.info("Serving at http://%s:%d", exporter_address, exporter_port)
         logging.debug("Refreshing stats every %d seconds", exporter_refresh_interval)
         scheduler.add_job(func=collector.refresh, trigger='interval', seconds=exporter_refresh_interval)
