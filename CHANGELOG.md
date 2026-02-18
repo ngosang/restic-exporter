@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.2 (upcoming)
+## 2.0.2 (2026/02/18)
 
 * Support for Restic V1 repositories (prints a warning log trace)
 * Add tini in the Docker image to fix zombie processes
