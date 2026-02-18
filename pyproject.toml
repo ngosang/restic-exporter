@@ -10,7 +10,7 @@ requires-python = ">=3.12"
 # NOTE: Update Dockerfile when changing dependencies
 dependencies = [
     "apscheduler>=3.11.2",
-    "prometheus-client==0.23.1",
+    "prometheus-client==0.24.1",
 ]
 
 [dependency-groups]
@@ -18,7 +18,7 @@ dev = [
     "pytest==9.0.2",
     "pytest-mock==3.15.1",
     "pytest-cov==7.0.0",
-    "ruff==0.14.8",
+    "ruff==0.15.1",
 ]
 
 [tool.ruff]
