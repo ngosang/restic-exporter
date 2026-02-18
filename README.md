@@ -257,3 +257,25 @@ Example Prometheus rules for alerting:
 There is a reference Grafana dashboard in [grafana/grafana_dashboard.json](./grafana/grafana_dashboard.json).
 
 ![](./grafana/grafana_dashboard.png)
+
+
+# Running with systemd
+- Build the package and install it systemwide:
+```
+uv build
+pipx install --global dist/restic_exporter-2.0.1-py3-none-any.whl
+```
+
+Copy the systemd unit file and the configuration file to the appropriate directories:
+```bash
+cp systemd/restic-exporter /etc/default/
+cp systemd/restic-exporter.service /etc/systemd/system/
+```
+Edit the /etc/default/restic-exporter and set at least the repo address and the password.  
+Afterwards start the daemon:
+```bash
+systemctl daemon-reload
+systemctl enable restic-exporter.service
+systemctl start restic-exporter.service
+```
+
