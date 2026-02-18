@@ -15,7 +15,8 @@ RUN cd /tmp \
 FROM python:3.14-alpine3.23
 
 # libc6-compat => https://github.com/ngosang/restic-exporter/issues/36
-RUN apk add --no-cache --update openssh tzdata libc6-compat
+# tini => https://github.com/ngosang/restic-exporter/issues/54
+RUN apk add --no-cache --update openssh tzdata libc6-compat tini
 
 COPY --from=builder /tmp/restic /usr/bin
 
@@ -26,6 +27,7 @@ RUN pip install prometheus-client==0.23.1 \
 COPY exporter/exporter.py pyproject.toml /app/
 EXPOSE 8001
 
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/usr/local/bin/python", "-u", "/app/exporter.py"]
 
 # Help
