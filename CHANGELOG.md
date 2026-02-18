@@ -3,6 +3,7 @@
 ## 2.0.2 (upcoming)
 
 * Support for Restic V1 repositories (prints a warning log trace)
+* Update Python dependencies
 
 ## 2.0.1 (2026/01/31)
 
