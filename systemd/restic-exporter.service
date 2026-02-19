@@ -1,0 +1,19 @@
+# Copy to /etc/systemd/system/
+# 
+[Unit]
+Description=Restic exporter for prometheus
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Restart=always
+EnvironmentFile=/etc/default/restic-exporter
+ExecStart=/usr/local/bin/restic-exporter
+User=root
+Group=root
+# WorkingDirectory=/lib
+# WorkingDirectory=/home/node/Node/
+
+[Install]
+WantedBy=multi-user.target

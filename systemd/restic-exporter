@@ -1,0 +1,6 @@
+# copy to /etc/default
+TZ=Europe/Berlin
+RESTIC_REPOSITORY=<repo url here>
+RESTIC_PASSWORD=<password_here>
+# RESTIC_PASSWORD_FILE=<file_path_with_password_here>
+REFRESH_INTERVAL=3600 # 1 hour
