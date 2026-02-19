@@ -9,7 +9,6 @@ readme = "README.md"
 requires-python = ">=3.12"
 # NOTE: Update Dockerfile when changing dependencies
 dependencies = [
-    "apscheduler>=3.11.2",
     "prometheus-client==0.24.1",
 ]
 
