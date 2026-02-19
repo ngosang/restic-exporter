@@ -1,4 +1,4 @@
-#!/usr/bin/env python -u
+#!/usr/bin/env python
 import datetime
 import hashlib
 import json
@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from prometheus_client import Metric, start_http_server
 from prometheus_client.core import REGISTRY, GaugeMetricFamily
 from prometheus_client.registry import Collector
-from apscheduler.schedulers.background import BackgroundScheduler
 
 
 @dataclass
@@ -584,7 +583,6 @@ def parse_bool_env(env_var_name: str, default: bool) -> bool:
 
 
 def main(refresh_loop: bool = True) -> None:
-    logging.getLogger("apscheduler").setLevel(logging.WARNING)  # silence the apscheduler debug messages
     logging.basicConfig(
         format="%(asctime)s %(levelname)-8s %(message)s",
         level=logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO")),
@@ -629,9 +627,6 @@ def main(refresh_loop: bool = True) -> None:
     exporter_include_paths = parse_bool_env("INCLUDE_PATHS", False)
     exporter_insecure_tls = parse_bool_env("INSECURE_TLS", False)
 
-    scheduler = BackgroundScheduler()
-    scheduler.start()
-
     try:
         collector = ResticCollector(
             disable_check=exporter_disable_check,
@@ -645,15 +640,14 @@ def main(refresh_loop: bool = True) -> None:
         REGISTRY.register(collector)
         start_http_server(exporter_port, exporter_address)
         # noinspection HttpUrlsUsage
-        logging.info("Serving at http://%s:%d", exporter_address, exporter_port)
-        logging.debug("Refreshing stats every %d seconds", exporter_refresh_interval)
-        scheduler.add_job(func=collector.refresh, trigger='interval', seconds=exporter_refresh_interval)
+
         while refresh_loop:
-            time.sleep(1)
+            logging.info("Refreshing stats every %d seconds", exporter_refresh_interval)
+            time.sleep(exporter_refresh_interval)
+            collector.refresh()
 
     except (KeyboardInterrupt, SystemExit):
         logging.info("\nInterrupted")
-        scheduler.shutdown()
         sys.exit(0)  # Stops subprocesses
 
 
