@@ -581,6 +581,7 @@ def main(refresh_loop: bool = True) -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
+    start_time = time.time()
     version = get_version()
     logging.info("Starting Restic Prometheus Exporter v%s", version)
     logging.info("It could take a while if the repository is remote")
@@ -632,7 +633,8 @@ def main(refresh_loop: bool = True) -> None:
 
         while refresh_loop:
             logging.info("Refreshing stats every %d seconds", exporter_refresh_interval)
-            time.sleep(exporter_refresh_interval)
+            wait_time = exporter_refresh_interval - int(time.time() - start_time) % exporter_refresh_interval
+            time.sleep(wait_time)
             collector.refresh()
 
     except KeyboardInterrupt:
