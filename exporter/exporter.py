@@ -640,6 +640,7 @@ def main(refresh_loop: bool = True) -> None:
         REGISTRY.register(collector)
         start_http_server(exporter_port, exporter_address)
         # noinspection HttpUrlsUsage
+        logging.info("Serving at http://%s:%d", exporter_address, exporter_port)
 
         while refresh_loop:
             logging.info("Refreshing stats every %d seconds", exporter_refresh_interval)
