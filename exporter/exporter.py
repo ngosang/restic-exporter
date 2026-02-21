@@ -581,6 +581,7 @@ def main(refresh_loop: bool = True) -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
+    logging.debug("DEBUG mode")
     start_time = time.time()
     version = get_version()
     logging.info("Starting Restic Prometheus Exporter v%s", version)
