@@ -581,8 +581,6 @@ def main(refresh_loop: bool = True) -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-    logging.debug("DEBUG mode")
-    start_time = time.time()
     version = get_version()
     logging.info("Starting Restic Prometheus Exporter v%s", version)
     logging.info("It could take a while if the repository is remote")
@@ -626,7 +624,7 @@ def main(refresh_loop: bool = True) -> None:
             include_paths=exporter_include_paths,
             insecure_tls=exporter_insecure_tls,
         )
-        logging.debug("Start collector")
+        start_time = time.time()
         collector.refresh(exit_on_error=exporter_exit_on_error)
         REGISTRY.register(collector)
         start_http_server(exporter_port, exporter_address)
@@ -637,7 +635,6 @@ def main(refresh_loop: bool = True) -> None:
             logging.info("Refreshing stats every %d seconds", exporter_refresh_interval)
             wait_time = exporter_refresh_interval - int(time.time() - start_time) % exporter_refresh_interval
             time.sleep(wait_time)
-            logging.debug("Start collector")
             collector.refresh()
 
     except KeyboardInterrupt:
