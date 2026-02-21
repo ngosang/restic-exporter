@@ -624,6 +624,7 @@ def main(refresh_loop: bool = True) -> None:
             include_paths=exporter_include_paths,
             insecure_tls=exporter_insecure_tls,
         )
+        start_time = time.time()
         collector.refresh(exit_on_error=exporter_exit_on_error)
         REGISTRY.register(collector)
         start_http_server(exporter_port, exporter_address)
@@ -632,7 +633,8 @@ def main(refresh_loop: bool = True) -> None:
 
         while refresh_loop:
             logging.info("Refreshing stats every %d seconds", exporter_refresh_interval)
-            time.sleep(exporter_refresh_interval)
+            wait_time = exporter_refresh_interval - int(time.time() - start_time) % exporter_refresh_interval
+            time.sleep(wait_time)
             collector.refresh()
 
     except KeyboardInterrupt:
