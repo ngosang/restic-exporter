@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "restic-exporter"
-version = "2.0.2"
+version = "2.1.0"
 description = ""
 authors = [
     {name = "Diego Heras", email = "ngosang@hotmail.es"},
