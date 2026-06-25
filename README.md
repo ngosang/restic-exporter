@@ -259,11 +259,16 @@ There is a reference Grafana dashboard in [grafana/grafana_dashboard.json](./gra
 ![](./grafana/grafana_dashboard.png)
 
 
-# Running with systemd
-- Build the package and install it systemwide:
-```
+## Running with systemd
+Build the package and install it systemwide (the wheel filename follows the current version, so use a glob):
+```bash
 uv build
-pipx install --global dist/restic_exporter-2.0.1-py3-none-any.whl
+pipx install --global dist/restic_exporter-*-py3-none-any.whl
+```
+
+Create the unprivileged user the service runs as:
+```bash
+useradd --system --no-create-home --shell /usr/sbin/nologin restic-exporter
 ```
 
 Copy the systemd unit file and the configuration file to the appropriate directories:
@@ -271,11 +276,16 @@ Copy the systemd unit file and the configuration file to the appropriate directo
 cp systemd/restic-exporter /etc/default/
 cp systemd/restic-exporter.service /etc/systemd/system/
 ```
-Edit the /etc/default/restic-exporter and set at least the repo address and the password. You can add any other environment variable if needed. 
+
+Edit `/etc/default/restic-exporter` and set at least the repo address and the password. You can add any other environment variable if needed. Since this file holds the repository password, restrict its permissions:
+```bash
+chmod 600 /etc/default/restic-exporter
+chown restic-exporter:restic-exporter /etc/default/restic-exporter
+```
+
 Afterwards start the daemon:
 ```bash
 systemctl daemon-reload
 systemctl enable restic-exporter.service
 systemctl start restic-exporter.service
 ```
-

@@ -4,6 +4,13 @@
 
 * Fix JSON parsing error with Restic 0.19.0 caused by progress lines in `--json` output
 * Improve refresh timing accuracy
+* Add wheel package build and a systemd service to run the exporter outside Docker
+* Add `restic-exporter` console script entry point
+* Detect the exporter version from the installed package metadata when run as a wheel
+* Check for the `restic` binary at startup and exit with a clear error if it is missing
+* Run the systemd service as an unprivileged user with sandboxing instead of root
+* Add an explicit `[build-system]` (setuptools) so the wheel build is reproducible
+* Ignore Python build artifacts (`build/`, `dist/`, `*.egg-info/`)
 * Update Restic 0.19.0 (built with Go 1.26)
 * Update base Docker image to Alpine 3.24
 * Update Python dependencies

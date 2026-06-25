@@ -565,13 +565,15 @@ class ResticCollector(Collector):
 
 
 def get_version() -> str:
-    # Try to get the installed package version
+    # Try to get the installed package version (works when installed as a wheel,
+    # where pyproject.toml is not shipped alongside the code).
     try:
         import importlib.metadata
+
         return importlib.metadata.version("restic-exporter")
     except (ImportError, importlib.metadata.PackageNotFoundError):
         pass
-    
+
     current_path = os.path.dirname(__file__)
     pyproject_path = os.path.join(current_path, "pyproject.toml")
     if not os.path.exists(pyproject_path):
@@ -664,9 +666,9 @@ def main(refresh_loop: bool = True) -> None:
             time.sleep(wait_time)
             collector.refresh()
 
-    except (KeyboardInterrupt, SystemExit):
+    except KeyboardInterrupt:
         logging.info("\nInterrupted")
-        sys.exit(0)  # Stops subprocesses
+        sys.exit(0)
 
 
 if __name__ == "__main__":

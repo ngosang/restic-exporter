@@ -8,3 +8,9 @@ _trial_temp/
 .coverage
 .python-version
 uv.lock
+
+# Python build artifacts
+__pycache__/
+build/
+dist/
+*.egg-info/

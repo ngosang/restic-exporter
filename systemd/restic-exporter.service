@@ -1,19 +1,34 @@
 # Copy to /etc/systemd/system/
-# 
 [Unit]
 Description=Restic exporter for prometheus
-After=network.target
+After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 Restart=always
+RestartSec=10
 EnvironmentFile=/etc/default/restic-exporter
 ExecStart=/usr/local/bin/restic-exporter
-User=root
-Group=root
-# WorkingDirectory=/lib
-# WorkingDirectory=/home/node/Node/
+
+# Run as an unprivileged user. Create it once with:
+#   useradd --system --no-create-home --shell /usr/sbin/nologin restic-exporter
+# The exporter only reads the restic repository and serves HTTP, so it does not
+# need root. If your repository is local and only readable by root, either grant
+# the user read access or set User=root below.
+User=restic-exporter
+Group=restic-exporter
+
+# Sandboxing / hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+LockPersonality=true
 
 [Install]
 WantedBy=multi-user.target
