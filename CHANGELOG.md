@@ -2,6 +2,7 @@
 
 ## 2.1.0 (2026/06/25)
 
+* Fix JSON parsing error with Restic 0.19.0 caused by progress lines in `--json` output
 * Update Restic 0.19.0 (built with Go 1.26)
 * Update base Docker image to Alpine 3.24
 * Update Python dependencies

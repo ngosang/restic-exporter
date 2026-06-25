@@ -741,6 +741,21 @@ class TestResticCollector:
         result = ResticCollector.parse_stderr(mock_result)
         assert result == "Error: repository not found  Exit code: 1"
 
+    def test_parse_restic_json(self):
+        # Clean JSON object parses unchanged
+        assert ResticCollector.parse_restic_json(b'{"total_size": 757}') == {"total_size": 757}
+
+        # Clean JSON array parses unchanged
+        assert ResticCollector.parse_restic_json(b'[{"id": "abc"}]') == [{"id": "abc"}]
+
+        # JSON object with a leading progress line (Restic >= 0.19.0, issue #60)
+        stdout = b'[0:00] 100.00%  1 / 1 packs\n{"total_size": 757}'
+        assert ResticCollector.parse_restic_json(stdout) == {"total_size": 757}
+
+        # JSON array (snapshots) with a leading progress line
+        stdout = b'[12:34] loading repository...\n[{"id": "abc"}]'
+        assert ResticCollector.parse_restic_json(stdout) == [{"id": "abc"}]
+
 
 class TestMain:
     @patch("exporter.exporter.start_http_server")

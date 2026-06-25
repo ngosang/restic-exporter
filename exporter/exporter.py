@@ -394,7 +394,7 @@ class ResticCollector(Collector):
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception("Error executing restic snapshot command: " + self.parse_stderr(result))
-        return json.loads(result.stdout.decode("utf-8"))
+        return self.parse_restic_json(result.stdout)
 
     def get_stats_global(self) -> ResticGlobalStats:
         stats = ResticGlobalStats(
@@ -469,7 +469,7 @@ class ResticCollector(Collector):
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception("Error executing restic stats command: " + self.parse_stderr(result))
-        return json.loads(result.stdout.decode("utf-8"))
+        return self.parse_restic_json(result.stdout)
 
     def get_check(self) -> int:
         # This command takes 20 seconds or more, but it's required
@@ -547,6 +547,20 @@ class ResticCollector(Collector):
     @staticmethod
     def parse_stderr(result: subprocess.CompletedProcess) -> str:
         return result.stderr.decode("utf-8").replace("\n", " ") + " Exit code: " + str(result.returncode)
+
+    @staticmethod
+    def parse_restic_json(stdout: bytes) -> dict | list:
+        # Restic 0.19.0 prints a progress line (e.g. "[0:00] ...") to stdout even with --json,
+        # so the captured output is no longer pure JSON (see issue #60). This is a bug specific to
+        # 0.19.0 and is already fixed upstream in later releases. Try a direct parse first (works
+        # for older and fixed restic versions) and only strip progress lines if that fails.
+        # Based on: https://github.com/lukasjarosch/restic-exporter/commit/71c5977d6a0fdc5ab66d686c1071a926fa68d614
+        text = stdout.decode("utf-8")
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            cleaned = re.sub(r"^\[\d+:\d+\][^\n]*\n?", "", text, flags=re.MULTILINE)
+            return json.loads(cleaned)
 
 
 def get_version() -> str:
