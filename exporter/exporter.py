@@ -647,6 +647,7 @@ def main(refresh_loop: bool = True) -> None:
 
         while refresh_loop:
             logging.info("Refreshing stats every %d seconds", exporter_refresh_interval)
+            # Align to the interval grid anchored at start_time so the refresh duration does not cause drift
             wait_time = exporter_refresh_interval - int(time.time() - start_time) % exporter_refresh_interval
             time.sleep(wait_time)
             collector.refresh()
