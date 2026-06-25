@@ -20,7 +20,7 @@ RUN apk add --no-cache --update openssh tzdata libc6-compat tini
 
 COPY --from=builder /tmp/restic /usr/bin
 
-RUN pip install prometheus-client==0.23.1 \
+RUN pip install prometheus-client==0.25.0 \
     # remove temporary files \
     && rm -rf /root/.cache
 
