@@ -424,7 +424,7 @@ class TestResticCollector:
             "--json",
         ]
 
-        # Flag only_latest=True
+        # Flag only_latest=True: group by host,paths to keep every client's latest snapshot (issue #61)
         restic_collector.get_snapshots_data(only_latest=True)
         assert mock_subprocess_run.call_args[0][0] == [
             "restic",
@@ -433,7 +433,19 @@ class TestResticCollector:
             "--json",
             "--latest",
             "1",
+            "--group-by",
+            "host,paths",
         ]
+
+        # Grouped layout (returned when --group-by is set) is flattened to a plain snapshot list
+        grouped = [
+            {"group_key": {"hostname": "host-a"}, "snapshots": [mock_snapshots_data[0]]},
+            {"group_key": {"hostname": "host-b"}, "snapshots": mock_snapshots_data[1:]},
+        ]
+        mock_subprocess_run.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(grouped).encode("utf-8"), stderr=b""
+        )
+        assert restic_collector.get_snapshots_data(only_latest=True) == mock_snapshots_data
 
         # Error
         mock_subprocess_run.return_value = MagicMock(returncode=1, stdout=b"", stderr=b"Error: repository not found")

@@ -387,7 +387,10 @@ class ResticCollector(Collector):
         ]
 
         if only_latest:
-            cmd.extend(["--latest", "1"])
+            # Restic 0.19.0 changed the "--latest" default grouping, so it returned a single
+            # globally-latest snapshot instead of one per client (issue #61). Set the group
+            # explicitly to keep the latest backup of every client on all restic versions.
+            cmd.extend(["--latest", "1", "--group-by", "host,paths"])
 
         if self.insecure_tls:
             cmd.extend(["--insecure-tls"])
@@ -395,7 +398,15 @@ class ResticCollector(Collector):
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             raise Exception("Error executing restic snapshot command: " + self.parse_stderr(result))
-        return self.parse_restic_json(result.stdout)
+        return self.flatten_snapshots_groups(self.parse_restic_json(result.stdout))
+
+    @staticmethod
+    def flatten_snapshots_groups(data: list[dict]) -> list[dict]:
+        # With --group-by, restic returns groups ({"group_key": ..., "snapshots": [...]}) instead
+        # of a flat snapshot list. Flatten them so callers always get a plain list of snapshots.
+        if data and isinstance(data[0], dict) and "snapshots" in data[0]:
+            return [snap for group in data for snap in (group.get("snapshots") or [])]
+        return data
 
     def get_stats_global(self) -> ResticGlobalStats:
         stats = ResticGlobalStats(

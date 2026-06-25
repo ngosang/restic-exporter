@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.1 (2026/06/25)
+
+* Fix missing backup metrics for all clients but the latest. Restic 0.19.0 changed the "--latest" default grouping
+
 ## 2.1.0 (2026/06/25)
 
 * Fix JSON parsing error with Restic 0.19.0 caused by progress lines in `--json` output
