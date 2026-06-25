@@ -1,7 +1,7 @@
 [Unit]
 Description=Restic exporter for prometheus
 Documentation=https://github.com/ngosang/restic-exporter
-After=network.target network-online.target nss-lookup.target basic.target
+After=network-online.target nss-lookup.target
 Wants=network-online.target nss-lookup.target
 StartLimitIntervalSec=30
 StartLimitBurst=3
@@ -9,11 +9,12 @@ StartLimitBurst=3
 [Service]
 Restart=on-failure
 RestartSec=30
-EnvironmentFile=-/etc/prometheus/restic-exporter
-ExecStart=/usr/bin/restic-exporter
+EnvironmentFile=-/etc/default/restic-exporter
+ExecStart=/usr/local/bin/restic-exporter
 User=restic-exporter
 Group=restic-exporter
-ExecReload=/bin/kill -HUP $MAINPID
+
+# Sandboxing / hardening
 NoNewPrivileges=true
 ProtectHome=true
 ProtectSystem=strict
@@ -24,6 +25,7 @@ ProtectKernelTunables=true
 LockPersonality=true
 RestrictRealtime=yes
 RestrictNamespaces=yes
+RestrictSUIDSGID=true
 MemoryDenyWriteExecute=yes
 PrivateDevices=yes
 PrivateTmp=true

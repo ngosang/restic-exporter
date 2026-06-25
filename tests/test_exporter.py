@@ -2,11 +2,35 @@
 import json
 import logging
 import os
+import signal
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+import exporter.exporter as exporter_module
 from exporter.exporter import ResticCollector, ResticGlobalStats, ResticSnapshot, ResticStats, get_version, main
+
+
+class _FakeShutdown:
+    """Drop-in for the module's shutdown Event that fires after N waits, so the
+    refresh loop can be exercised deterministically without real sleeping."""
+
+    def __init__(self, fire_after):
+        self._set = False
+        self._waits = 0
+        self._fire_after = fire_after
+
+    def is_set(self):
+        return self._set
+
+    def set(self):
+        self._set = True
+
+    def wait(self, timeout=None):
+        self._waits += 1
+        if self._waits >= self._fire_after:
+            self._set = True
+        return self._set
 
 
 @pytest.fixture
@@ -863,3 +887,39 @@ class TestMain:
         assert (
             "The environment variable NO_STATS was removed in version 2.0.0. Checkout the changelog." in caplog.messages
         )
+
+    def test_handle_shutdown_sets_event(self):
+        exporter_module._shutdown.clear()
+        exporter_module._handle_shutdown(signal.SIGTERM, None)
+        assert exporter_module._shutdown.is_set()
+        exporter_module._shutdown.clear()
+
+    @patch("exporter.exporter.start_http_server")
+    @patch("exporter.exporter.REGISTRY.register")
+    @patch("exporter.exporter.ResticCollector")
+    @patch.dict(
+        os.environ,
+        {
+            "RESTIC_REPOSITORY": "/path/to/repo",
+            "RESTIC_PASSWORD": "password",
+            "REFRESH_INTERVAL": "3600",
+        },
+    )
+    def test_main_loop_shuts_down_cleanly(self, mock_collector_cls, _mock_register, _mock_start_server, caplog):
+        caplog.set_level(logging.INFO)
+        collector = mock_collector_cls.return_value
+        orig_term = signal.getsignal(signal.SIGTERM)
+
+        # Fake shutdown event: the interruptible wait returns False once (so the
+        # loop runs one refresh) and then signals shutdown, exiting cleanly.
+        fake_shutdown = _FakeShutdown(fire_after=2)
+        try:
+            with patch("exporter.exporter._shutdown", fake_shutdown):
+                main(refresh_loop=True)
+        finally:
+            signal.signal(signal.SIGTERM, orig_term)
+
+        # One refresh at startup + one loop refresh, then shutdown breaks the loop
+        assert collector.refresh.call_count == 2
+        assert fake_shutdown.is_set()
+        assert "Shutting down" in caplog.messages

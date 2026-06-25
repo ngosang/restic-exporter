@@ -268,7 +268,8 @@ pipx install --global dist/restic_exporter-*-py3-none-any.whl
 
 Create the unprivileged user the service runs as:
 ```bash
-useradd --system --no-create-home --shell /usr/sbin/nologin restic-exporter
+cp systemd/restic-exporter.sysusers /etc/sysusers.d/restic-exporter.conf
+systemd-sysusers
 ```
 
 Copy the systemd unit file and the configuration file to the appropriate directories:

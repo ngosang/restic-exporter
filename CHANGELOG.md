@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.2 (2026/06/25)
+
+* Shut down cleanly on `SIGTERM` instead of waiting for the next refresh cycle
+* Harden the systemd unit and align its paths with the documented install
+
 ## 2.1.1 (2026/06/25)
 
 * Fix missing backup metrics for all clients but the latest. Restic 0.19.0 changed the "--latest" default grouping

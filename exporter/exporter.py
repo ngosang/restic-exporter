@@ -6,8 +6,10 @@ import logging
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
+import threading
 import time
 import traceback
 from collections.abc import Iterable
@@ -609,6 +611,15 @@ def parse_bool_env(env_var_name: str, default: bool) -> bool:
     return True
 
 
+# Set by the SIGTERM handler to break out of the refresh loop and shut down cleanly.
+_shutdown = threading.Event()
+
+
+def _handle_shutdown(signum: int, frame: object) -> None:
+    logging.info("Received signal %d, shutting down", signum)
+    _shutdown.set()
+
+
 def main(refresh_loop: bool = True) -> None:
     logging.basicConfig(
         format="%(asctime)s %(levelname)-8s %(message)s",
@@ -670,12 +681,21 @@ def main(refresh_loop: bool = True) -> None:
         # noinspection HttpUrlsUsage
         logging.info("Serving at http://%s:%d", exporter_address, exporter_port)
 
-        while refresh_loop:
+        if refresh_loop:
+            # Shut down cleanly on SIGTERM (systemctl stop)
+            signal.signal(signal.SIGTERM, _handle_shutdown)
+
+        while refresh_loop and not _shutdown.is_set():
             logging.info("Refreshing stats every %d seconds", exporter_refresh_interval)
             # Align to the interval grid anchored at start_time so the refresh duration does not cause drift
             wait_time = exporter_refresh_interval - int(time.time() - start_time) % exporter_refresh_interval
-            time.sleep(wait_time)
+            # Interruptible wait so a shutdown signal stops us promptly instead of after the full interval
+            if _shutdown.wait(timeout=wait_time):
+                break
             collector.refresh()
+
+        if _shutdown.is_set():
+            logging.info("Shutting down")
 
     except KeyboardInterrupt:
         logging.info("\nInterrupted")
