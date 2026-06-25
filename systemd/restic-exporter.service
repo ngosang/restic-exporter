@@ -1,34 +1,33 @@
-# Copy to /etc/systemd/system/
 [Unit]
 Description=Restic exporter for prometheus
-After=network-online.target
-Wants=network-online.target
+Documentation=https://github.com/ngosang/restic-exporter
+After=network.target network-online.target nss-lookup.target basic.target
+Wants=network-online.target nss-lookup.target
+StartLimitIntervalSec=30
+StartLimitBurst=3
 
 [Service]
-Type=simple
-Restart=always
-RestartSec=10
-EnvironmentFile=/etc/default/restic-exporter
-ExecStart=/usr/local/bin/restic-exporter
-
-# Run as an unprivileged user. Create it once with:
-#   useradd --system --no-create-home --shell /usr/sbin/nologin restic-exporter
-# The exporter only reads the restic repository and serves HTTP, so it does not
-# need root. If your repository is local and only readable by root, either grant
-# the user read access or set User=root below.
+Restart=on-failure
+RestartSec=30
+EnvironmentFile=-/etc/prometheus/restic-exporter
+ExecStart=/usr/bin/restic-exporter
 User=restic-exporter
 Group=restic-exporter
-
-# Sandboxing / hardening
+ExecReload=/bin/kill -HUP $MAINPID
 NoNewPrivileges=true
-ProtectSystem=strict
 ProtectHome=true
-PrivateTmp=true
+ProtectSystem=strict
+ProtectHostname=true
 ProtectControlGroups=true
 ProtectKernelModules=true
 ProtectKernelTunables=true
-RestrictSUIDSGID=true
 LockPersonality=true
+RestrictRealtime=yes
+RestrictNamespaces=yes
+MemoryDenyWriteExecute=yes
+PrivateDevices=yes
+PrivateTmp=true
+CapabilityBoundingSet=
 
 [Install]
 WantedBy=multi-user.target
