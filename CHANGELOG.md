@@ -11,6 +11,7 @@
 * Run the systemd service as an unprivileged user with sandboxing instead of root
 * Add an explicit `[build-system]` (setuptools) so the wheel build is reproducible
 * Ignore Python build artifacts (`build/`, `dist/`, `*.egg-info/`)
+* Build multi-arch Docker images by digest and bump GitHub Actions versions
 * Update Restic 0.19.0 (built with Go 1.26)
 * Update base Docker image to Alpine 3.24
 * Update Python dependencies
