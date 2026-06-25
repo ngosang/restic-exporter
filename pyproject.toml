@@ -37,3 +37,9 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "lf"
 docstring-code-format = true
+
+[tool.setuptools]
+packages = ["exporter"]
+
+[project.scripts]
+restic-exporter = "exporter.exporter:main"

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -564,6 +565,13 @@ class ResticCollector(Collector):
 
 
 def get_version() -> str:
+    # Try to get the installed package version
+    try:
+        import importlib.metadata
+        return importlib.metadata.version("restic-exporter")
+    except (ImportError, importlib.metadata.PackageNotFoundError):
+        pass
+    
     current_path = os.path.dirname(__file__)
     pyproject_path = os.path.join(current_path, "pyproject.toml")
     if not os.path.exists(pyproject_path):
@@ -598,6 +606,10 @@ def main(refresh_loop: bool = True) -> None:
     version = get_version()
     logging.info("Starting Restic Prometheus Exporter v%s", version)
     logging.info("It could take a while if the repository is remote")
+
+    if shutil.which("restic") is None:
+        logging.error("Restic binary not found. Exiting")
+        sys.exit(1)
 
     if os.environ.get("RESTIC_REPOSITORY") is None:
         logging.error("The environment variable RESTIC_REPOSITORY is mandatory")
@@ -652,9 +664,9 @@ def main(refresh_loop: bool = True) -> None:
             time.sleep(wait_time)
             collector.refresh()
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, SystemExit):
         logging.info("\nInterrupted")
-        exit(0)
+        sys.exit(0)  # Stops subprocesses
 
 
 if __name__ == "__main__":
