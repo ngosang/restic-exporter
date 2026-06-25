@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine3.23 AS builder
+FROM golang:1.26-alpine3.24 AS builder
 
 ENV RESTIC_VERSION=0.19.0
 ENV CGO_ENABLED=0
@@ -12,7 +12,7 @@ RUN cd /tmp \
     # flag -ldflags "-s -w" produces a smaller executable \
     && go build -ldflags "-s -w" -v -o /tmp/restic ./cmd/restic
 
-FROM python:3.14-alpine3.23
+FROM python:3.14-alpine3.24
 
 # libc6-compat => https://github.com/ngosang/restic-exporter/issues/36
 # tini => https://github.com/ngosang/restic-exporter/issues/54

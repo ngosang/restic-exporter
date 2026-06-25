@@ -3,6 +3,7 @@
 ## 2.1.0 (2026/06/25)
 
 * Update Restic 0.19.0 (built with Go 1.26)
+* Update base Docker image to Alpine 3.24
 
 ## 2.0.2 (2026/02/18)
 
