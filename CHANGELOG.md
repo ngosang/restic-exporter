@@ -3,6 +3,7 @@
 ## 2.2.0 (2026/11/14)
 
 * Add `RESTIC_EXTRA_ARGS` environment variable to pass extra arguments to Restic (e.g. `-o sftp.command=...`)
+* Fix crash at startup with the systemd environment file caused by an inline comment in `REFRESH_INTERVAL`
 
 ## 2.1.2 (2026/06/25)
 
