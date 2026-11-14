@@ -9,7 +9,7 @@ on:
 jobs:
   build-docker-images:
     name: build-docker-images (${{ matrix.arch }})
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       matrix:
         include:
@@ -32,7 +32,7 @@ jobs:
     steps:
       -
         name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -86,7 +86,7 @@ jobs:
 
   create-manifest:
     needs: build-docker-images
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       -
         name: Download digests

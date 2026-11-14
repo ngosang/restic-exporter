@@ -8,11 +8,11 @@ on:
 
 jobs:
   tag-release:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       -
         name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       -
         name: Auto Tag
         uses: djordon/git-autotag-action@v0.6.0
