@@ -43,6 +43,7 @@ def restic_collector():
         disable_locks=False,
         include_paths=False,
         insecure_tls=False,
+        extra_args=[],
     )
 
 
@@ -182,6 +183,14 @@ class TestResticCollector:
         mock_restic_cli.side_effect = Exception("Restic command failed")
         with pytest.raises(SystemExit):
             restic_collector.refresh(exit_on_error=True)
+
+    def test_refresh_extra_args(self, restic_collector, mock_restic_cli):
+        restic_collector.extra_args = ["-o", "sftp.args=-4"]
+        restic_collector.refresh()
+        commands = [call[0][0] for call in mock_restic_cli.call_args_list]
+        assert {cmd[4] for cmd in commands} == {"snapshots", "stats", "check", "list"}
+        for cmd in commands:
+            assert cmd[:4] == ["restic", "-o", "sftp.args=-4", "--no-lock"]
 
     def test_collect_metrics(self, restic_collector, mock_restic_cli):
         """Test the collect method that yields Prometheus metrics"""
@@ -816,6 +825,7 @@ class TestMain:
         assert collector.disable_locks is False
         assert collector.include_paths is False
         assert collector.insecure_tls is False
+        assert collector.extra_args == []
         # The collector has metrics after first refresh
         assert collector.metrics is not None
 
@@ -845,6 +855,7 @@ class TestMain:
             "NO_LOCKS": "True",
             "INCLUDE_PATHS": "True",
             "INSECURE_TLS": "True",
+            "RESTIC_EXTRA_ARGS": '-o sftp.command="ssh -i /key user@host -s sftp" --no-cache',
         },
     )
     def test_main_env_vars(self, mock_register, mock_start_server, mock_restic_cli):
@@ -859,6 +870,7 @@ class TestMain:
         assert collector.disable_locks is True
         assert collector.include_paths is True
         assert collector.insecure_tls is True
+        assert collector.extra_args == ["-o", "sftp.command=ssh -i /key user@host -s sftp", "--no-cache"]
         # The collector has metrics after first refresh
         assert collector.metrics is not None
 

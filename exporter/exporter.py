@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -92,6 +93,7 @@ class ResticCollector(Collector):
         disable_locks: bool,
         include_paths: bool,
         insecure_tls: bool,
+        extra_args: list[str],
     ) -> None:
         self.disable_check = disable_check
         self.disable_global_stats = disable_global_stats
@@ -99,6 +101,7 @@ class ResticCollector(Collector):
         self.disable_locks = disable_locks
         self.include_paths = include_paths
         self.insecure_tls = insecure_tls
+        self.extra_args = extra_args
         self.stats_snapshot_cache: dict[str, ResticStats] = {}
         self.metrics: ResticMetrics | None = None
 
@@ -383,6 +386,7 @@ class ResticCollector(Collector):
     def get_snapshots_data(self, only_latest: bool) -> list[dict]:
         cmd: list[str] = [
             "restic",
+            *self.extra_args,
             "--no-lock",
             "snapshots",
             "--json",
@@ -469,7 +473,7 @@ class ResticCollector(Collector):
 
     def get_stats_data(self, snapshot_id: str | None, raw_mode: bool) -> dict:
         # This command is expensive in CPU/Memory (1-5 seconds)
-        cmd = ["restic", "--no-lock", "stats", "--json"]
+        cmd = ["restic", *self.extra_args, "--no-lock", "stats", "--json"]
 
         if raw_mode:
             cmd.extend(["--mode", "raw-data"])
@@ -489,6 +493,7 @@ class ResticCollector(Collector):
         # This command takes 20 seconds or more, but it's required
         cmd = [
             "restic",
+            *self.extra_args,
             "--no-lock",
             "check",
         ]
@@ -506,6 +511,7 @@ class ResticCollector(Collector):
     def get_locks(self) -> int:
         cmd: list[str] = [
             "restic",
+            *self.extra_args,
             "--no-lock",
             "list",
             "locks",
@@ -664,6 +670,7 @@ def main(refresh_loop: bool = True) -> None:
     exporter_disable_locks = parse_bool_env("NO_LOCKS", False)
     exporter_include_paths = parse_bool_env("INCLUDE_PATHS", False)
     exporter_insecure_tls = parse_bool_env("INSECURE_TLS", False)
+    exporter_extra_args = shlex.split(os.environ.get("RESTIC_EXTRA_ARGS", ""))
 
     try:
         collector = ResticCollector(
@@ -673,6 +680,7 @@ def main(refresh_loop: bool = True) -> None:
             disable_locks=exporter_disable_locks,
             include_paths=exporter_include_paths,
             insecure_tls=exporter_insecure_tls,
+            extra_args=exporter_extra_args,
         )
         start_time = time.time()
         collector.refresh(exit_on_error=exporter_exit_on_error)

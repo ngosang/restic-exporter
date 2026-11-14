@@ -141,6 +141,8 @@ applies for backups performed with an old version of the Restic client.
 - `INCLUDE_PATHS`: (Optional) Include snapshot paths for each backup. The paths are separated by commas. Default is
 `False` (not collect the paths).
 - `INSECURE_TLS`: (Optional) skip TLS verification for self-signed certificates. Default is `False` (not skip).
+- `RESTIC_EXTRA_ARGS`: (Optional) Extra global arguments passed to every `restic` command. Useful for global flags that
+Restic has no environment variable for (e.g. `-o` extended options). Example: `-o sftp.command="ssh -i /key user@host -s sftp" --limit-download 1000`.
 - `AWS_ACCESS_KEY_ID`: (Optional) Required for Amazon S3, Minio and Wasabi backends.
 - `AWS_SECRET_ACCESS_KEY`: (Optional) Required for Amazon S3, Minio and Wasabi backends.
 - `B2_ACCOUNT_ID`: (Optional) Required for Backblaze B2 backend.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.0 (2026/11/14)
+
+* Add `RESTIC_EXTRA_ARGS` environment variable to pass extra arguments to Restic (e.g. `-o sftp.command=...`)
+
 ## 2.1.2 (2026/06/25)
 
 * Shut down cleanly on `SIGTERM` instead of waiting for the next refresh cycle
