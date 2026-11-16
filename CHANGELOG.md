@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.1 (2026/11/16)
+
+* Fix crash on a repository without snapshots. #62
+* Fix crash when a new client finishes its first backup while the metrics are being collected
+
 ## 2.2.0 (2026/11/14)
 
 * Add `RESTIC_EXTRA_ARGS` environment variable to pass extra arguments to Restic (e.g. `-o sftp.command=...`)

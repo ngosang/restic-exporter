@@ -322,7 +322,8 @@ class ResticCollector(Collector):
                     snapshot_tags=",".join(snap.tags),
                     snapshot_paths=(",".join(snap.paths) if self.include_paths else ""),
                     timestamp=snap.timestamp,
-                    snapshots_total=snap_total_counter[snap.hash],
+                    # A new client's first backup may finish between both snapshots calls
+                    snapshots_total=snap_total_counter.get(snap.hash, 1),
                     stats=stats,
                 )
             )
@@ -393,9 +394,7 @@ class ResticCollector(Collector):
         ]
 
         if only_latest:
-            # Restic 0.19.0 changed the "--latest" default grouping, so it returned a single
-            # globally-latest snapshot instead of one per client (issue #61). Set the group
-            # explicitly to keep the latest backup of every client on all restic versions.
+            # Restic 0.19.0 groups --latest globally; group explicitly to keep one per client (issue #61)
             cmd.extend(["--latest", "1", "--group-by", "host,paths"])
 
         if self.insecure_tls:
@@ -427,15 +426,16 @@ class ResticCollector(Collector):
 
         stats_data = self.get_stats_data(snapshot_id=None, raw_mode=True)
 
+        # Restic omits zero-valued fields, e.g. on a repository without snapshots (issue #62)
         stats.total_size = stats_data["total_size"]
-        stats.total_blob_count = stats_data["total_blob_count"]
+        stats.total_blob_count = stats_data.get("total_blob_count", 0)
         stats.total_snapshots_count = stats_data["snapshots_count"]
 
-        # Compression fields are only available in Restic V2 repositories
+        # Compression fields are only available in Restic V2 repositories with data
         if "total_uncompressed_size" in stats_data and "compression_ratio" in stats_data:
             stats.total_uncompressed_size = stats_data["total_uncompressed_size"]
             stats.compression_ratio = stats_data["compression_ratio"]
-        else:
+        elif stats.total_snapshots_count > 0:
             logging.warning(
                 "Repository does not provide compression stats. "
                 "It is recommended to upgrade to a Restic V2 repository for full metrics support."
@@ -490,7 +490,7 @@ class ResticCollector(Collector):
         return self.parse_restic_json(result.stdout)
 
     def get_check(self) -> int:
-        # This command takes 20 seconds or more, but it's required
+        # Slow: 20 seconds or more
         cmd = [
             "restic",
             *self.extra_args,
@@ -503,10 +503,10 @@ class ResticCollector(Collector):
 
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode == 0:
-            return 1  # ok
+            return 1
         else:
             logging.warning("Error checking the repository health. %s", self.parse_stderr(result))
-            return 0  # error
+            return 0
 
     def get_locks(self) -> int:
         cmd: list[str] = [
@@ -570,10 +570,7 @@ class ResticCollector(Collector):
 
     @staticmethod
     def parse_restic_json(stdout: bytes) -> dict | list:
-        # Restic 0.19.0 prints a progress line (e.g. "[0:00] ...") to stdout even with --json,
-        # so the captured output is no longer pure JSON (see issue #60). This is a bug specific to
-        # 0.19.0 and is already fixed upstream in later releases. Try a direct parse first (works
-        # for older and fixed restic versions) and only strip progress lines if that fails.
+        # Restic 0.19.0 prints progress lines to stdout even with --json (issue #60)
         # Based on: https://github.com/lukasjarosch/restic-exporter/commit/71c5977d6a0fdc5ab66d686c1071a926fa68d614
         text = stdout.decode("utf-8")
         try:

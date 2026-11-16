@@ -223,10 +223,8 @@ class TestResticCollector:
 
     def test_collect_metrics_when_none(self, restic_collector):
         """Test the collect method returns empty when metrics are None"""
-        # Don't call refresh, so metrics stays None
         assert restic_collector.metrics is None
         metrics = list(restic_collector.collect())
-        # Should return empty list without crashing
         assert len(metrics) == 0
 
     def test_get_metrics_disabled_features(self, restic_collector, mock_restic_cli):
@@ -323,7 +321,6 @@ class TestResticCollector:
         restic_collector.disable_legacy_stats = True
         metrics = restic_collector.get_metrics()
 
-        # Verify stats are collected
         for client in metrics.clients:
             assert client.stats.total_size == -1
             assert client.stats.total_file_count == -1
@@ -357,7 +354,7 @@ class TestResticCollector:
         # 2 snapshots
         assert mock_restic_cli.call_count == 2
 
-    def test_get_metrics_snapshot_counter(self, restic_collector, mock_restic_cli):
+    def test_get_metrics_snapshot_counter(self, restic_collector, mock_restic_cli, mock_snapshots_data):
         """Test that snapshot counter works correctly"""
         restic_collector.disable_check = True
         restic_collector.disable_global_stats = True
@@ -373,6 +370,14 @@ class TestResticCollector:
 
         client_2 = metrics.clients[1]
         assert client_2.snapshots_total == 1
+
+        # A backup finished between the counters and the latest snapshots calls
+        latest = json.dumps(mock_snapshots_data).encode("utf-8")
+        mock_restic_cli.side_effect = lambda cmd, **kwargs: MagicMock(
+            returncode=0, stdout=latest if "--latest" in cmd else b"[]", stderr=b""
+        )
+        metrics = restic_collector.get_metrics()
+        assert [client.snapshots_total for client in metrics.clients] == [1, 1]
 
     def test_get_snapshots_counters(self, restic_collector, mock_subprocess_run, mock_snapshots_data):
         mock_subprocess_run.return_value = MagicMock(
@@ -500,7 +505,6 @@ class TestResticCollector:
         ]
 
     def test_get_stats_global(self, restic_collector, mock_subprocess_run, mock_stats_raw_data):
-        assert len(restic_collector.stats_snapshot_cache) == 0
         mock_subprocess_run.return_value = MagicMock(
             returncode=0, stdout=json.dumps(mock_stats_raw_data).encode("utf-8"), stderr=b""
         )
@@ -544,6 +548,23 @@ class TestResticCollector:
         )
         assert mock_subprocess_run.call_count == 1
         assert any("It is recommended to upgrade to a Restic V2 repository" in msg for msg in caplog.messages)
+
+    def test_get_stats_global_empty_repository(self, restic_collector, mock_subprocess_run, caplog):
+        # Real output of Restic 0.19.1 on a repository without snapshots (issue #62)
+        mock_subprocess_run.return_value = MagicMock(
+            returncode=0, stdout=b'{"total_size":0,"snapshots_count":0}', stderr=b""
+        )
+        with caplog.at_level(logging.WARNING):
+            stats = restic_collector.get_stats_global()
+
+        assert stats == ResticGlobalStats(
+            total_size=0,
+            total_uncompressed_size=-1,
+            compression_ratio=-1,
+            total_blob_count=0,
+            total_snapshots_count=0,
+        )
+        assert caplog.messages == []
 
     def test_get_stats_legacy(self, restic_collector, mock_subprocess_run, mock_stats_data):
         assert len(restic_collector.stats_snapshot_cache) == 0
@@ -590,7 +611,7 @@ class TestResticCollector:
         assert mock_subprocess_run.call_count == 1  # No new call
 
     def test_get_stats_data(self, restic_collector, mock_subprocess_run, mock_stats_data, mock_stats_raw_data):
-        # snapshot_id, raw_mode=False (used by get_stats_snapshot)
+        # snapshot_id, raw_mode=False (used by get_stats_legacy)
         mock_subprocess_run.return_value = MagicMock(
             returncode=0, stdout=json.dumps(mock_stats_data).encode("utf-8"), stderr=b""
         )
@@ -656,7 +677,6 @@ class TestResticCollector:
         # Insecure TLS
         restic_collector.insecure_tls = True
         mock_subprocess_run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
-        restic_collector.get_check()
         result = restic_collector.get_check()
         assert result == 1  # Success
         assert mock_subprocess_run.call_args[0][0] == [
@@ -861,7 +881,7 @@ class TestMain:
     def test_main_env_vars(self, mock_register, mock_start_server, mock_restic_cli):
         main(refresh_loop=False)
 
-        # Collector registered with default params
+        # Collector registered with params from env vars
         mock_register.assert_called_once()
         collector = mock_register.call_args[0][0]
         assert collector.disable_check is True
@@ -885,6 +905,7 @@ class TestMain:
         {
             "NO_STATS": "True",
         },
+        clear=True,
     )
     def test_main_error(self, mock_sys_exit, _mock_register, _mock_start_server, mock_restic_cli, caplog):
         caplog.set_level(logging.ERROR)
