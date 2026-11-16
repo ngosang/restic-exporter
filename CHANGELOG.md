@@ -4,6 +4,8 @@
 
 * Fix crash on a repository without snapshots. #62
 * Fix crash when a new client finishes its first backup while the metrics are being collected
+* Update Python 3.15 in the Docker image
+* Update Python dependencies (prometheus-client 0.26.0)
 
 ## 2.2.0 (2026/11/14)
 

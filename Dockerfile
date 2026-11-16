@@ -12,7 +12,7 @@ RUN cd /tmp \
     # flag -ldflags "-s -w" produces a smaller executable \
     && go build -ldflags "-s -w" -v -o /tmp/restic ./cmd/restic
 
-FROM python:3.14-alpine3.24
+FROM python:3.15-alpine3.24
 
 # libc6-compat => https://github.com/ngosang/restic-exporter/issues/36
 # tini => https://github.com/ngosang/restic-exporter/issues/54
@@ -20,7 +20,7 @@ RUN apk add --no-cache --update openssh tzdata libc6-compat tini
 
 COPY --from=builder /tmp/restic /usr/bin
 
-RUN pip install prometheus-client==0.25.0 \
+RUN pip install prometheus-client==0.26.0 \
     # remove temporary files \
     && rm -rf /root/.cache
 
